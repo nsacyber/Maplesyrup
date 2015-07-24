@@ -1,0 +1,2 @@
+clean:
+	make -C $(KERNEL_SRC) M=`pwd` clean

@@ -1,0 +1,11 @@
+ACLOCAL_AMFLAGS = -I m4
+SUBDIRS = lib/src frontend
+dist_doc_DATA = README.md
+EXTRA_DIST = module/cmd_handler.c
+EXTRA_DIST += module/entrypoint.c
+EXTRA_DIST += module/Makefile
+EXTRA_DIST += module/kernel_return.S
+EXTRA_DIST += frontend/console.py
+EXTRA_DIST += common/Kbuild
+EXTRA_DIST += LICENSE
+EXTRA_DIST += DISCLAIMER

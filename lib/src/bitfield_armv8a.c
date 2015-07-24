@@ -1,0 +1,642 @@
+#include <stdio.h>
+#include <sys/ioctl.h>
+
+#include "maplesyrup.h"
+#include "parse.h"
+#include "parse_breakout.h"
+#include "bitfield_armv8a.h"
+
+
+bitfield_info bitfield_armv8a_table[] =
+{   
+    /* Identification Bitfields */ 
+    { BO_V8A_PFR0_STATE0, MS_IOCTL_PFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "State0", "ident", "PFR0", "ARM instruction set support" },
+    { BO_V8A_PFR0_STATE1, MS_IOCTL_PFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "State1", "ident", "PFR0", "Thumb instruction set support" },
+    { BO_V8A_PFR0_STATE2, MS_IOCTL_PFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "State2", "ident", "PFR0", "Jazelle extension support" },
+    { BO_V8A_PFR0_STATE3, MS_IOCTL_PFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "State3", "ident", "PFR0", "ThumbEE instruction set support" },
+    { BO_V8A_PFR0_RESERVED, MS_IOCTL_PFR0, NS_PRIVILEGE_LEVEL_1, 16, 16, "Reserved", "ident", "PFR0", "Reserved" },
+    
+    { BO_V8A_PFR1_PROGMODEL, MS_IOCTL_PFR1, NS_PRIVILEGE_LEVEL_1, 0, 4, "Programmers' model", "ident", "PFR1", "Programmers' model" },
+    { BO_V8A_PFR1_SECEXT, MS_IOCTL_PFR1, NS_PRIVILEGE_LEVEL_1, 4, 4, "Security", "ident", "PFR1", "Security support" },
+    { BO_V8A_PFR1_MMODEL, MS_IOCTL_PFR1, NS_PRIVILEGE_LEVEL_1, 8, 4, "M profile programmers' model", "ident", "PFR1", "M profile programmers' model" },
+    { BO_V8A_PFR1_VIRTEXT, MS_IOCTL_PFR1, NS_PRIVILEGE_LEVEL_1, 12, 4, "Virtualization Extensions", "ident", "PFR1", "Virtualization Extensions" },
+    { BO_V8A_PFR1_TIMER, MS_IOCTL_PFR1, NS_PRIVILEGE_LEVEL_1, 16, 4, "Generic Timer Extension", "ident", "PFR1", "Generic Timer Extension" },  
+    { BO_V8A_PFR1_SECFRAC, MS_IOCTL_PFR1, NS_PRIVILEGE_LEVEL_1, 20, 4, "Sec_frac", "ident", "PFR1", "Security fractional field" }, 
+    { BO_V8A_PFR1_VIRT_FRAC, MS_IOCTL_PFR1, NS_PRIVILEGE_LEVEL_1, 24, 4, "Virt_frac", "ident", "PFR1", "Virtualization fractional field" },    
+    { BO_V8A_PFR1_GIC, MS_IOCTL_PFR1, NS_PRIVILEGE_LEVEL_1, 28, 4, "GIC", "ident", "PFR1", "System Register GIC CPU interface" },  
+    
+    { BO_V8A_AA64PFR0_EL1_EL0, MS_IOCTL_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "EL0", "ident", "AA64PFR0", "EL0 exception handling" },
+    { BO_V8A_AA64PFR0_EL1_EL1, MS_IOCTL_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "EL1", "ident", "AA64PFR0", "EL1 exception handling" },
+    { BO_V8A_AA64PFR0_EL1_EL2, MS_IOCTL_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "EL2", "ident", "AA64PFR0", "EL2 exception handling" },
+    { BO_V8A_AA64PFR0_EL1_EL3, MS_IOCTL_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "EL3", "ident", "AA64PFR0", "EL3 exception handling" },
+    { BO_V8A_AA64PFR0_EL1_FP, MS_IOCTL_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "FP", "ident", "AA64PFR0", "Floating-point implemented" },
+    { BO_V8A_AA64PFR0_EL1_ADVSIMD, MS_IOCTL_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "AdvSIMD", "ident", "AA64PFR0", "Advanced SIMD implemented" },
+    { BO_V8A_AA64PFR0_EL1_GIC, MS_IOCTL_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "GIC", "ident", "AA64PFR0", "System Register GIC interface" },
+    { BO_V8A_AA64PFR0_EL1_RESERVED, MS_IOCTL_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 28, 36, "Reserved", "ident", "AA64PFR0", "Reserved" },
+    
+    { BO_V8A_AA64PFR1_EL1_RESERVED, MS_IOCTL_AA64PFR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reserved", "ident", "AA64PFR1", "Reserved" },
+    
+    { BO_V8A_DFR0_CODEBUGMODEL, MS_IOCTL_DFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Coprocessor debug model", "ident", "DFR0", "Coprocessor debug model" },
+    { BO_V8A_DFR0_COSECDEBUGMODEL, MS_IOCTL_DFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "Coprocessor secure debug model", "ident", "DFR0", "Coprocessor secure debug model" },
+    { BO_V8A_DFR0_MEMMAPDEBUGMODEL, MS_IOCTL_DFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Memory-mapped debug model", "ident", "DFR0", " Memory-mapped debug model" },
+    { BO_V8A_DFR0_COTRACEMODEL, MS_IOCTL_DFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "Coprocessor trace model", "ident", "DFR0", " Coprocessor trace model" },
+    { BO_V8A_DFR0_MMTRACEMODEL, MS_IOCTL_DFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Memory-mapped trace model", "ident", "DFR0", "Memory-mapped trace model" },
+    { BO_V8A_DFR0_MDEBUGMODEL, MS_IOCTL_DFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Debug model, M profile", "ident", "DFR0", "Debug model, M profile" },
+    { BO_V8A_DFR0_PERFMONEXT, MS_IOCTL_DFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Performance Monitors Extension", "ident", "DFR0", "Performance Monitors Extension" },
+    { BO_V8A_DFR0_RESERVED, MS_IOCTL_DFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "Reserved", "ident", "DFR0", "Reserved" },
+    
+    { BO_V8A_AFR0_IMPLEMENTATION_01, MS_IOCTL_AFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Implementation Defined", "ident", "AFR0", "Implementation Defined" },
+    { BO_V8A_AFR0_IMPLEMENTATION_02, MS_IOCTL_AFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "Implementation Defined", "ident", "AFR0", "Implementation Defined" },
+    { BO_V8A_AFR0_IMPLEMENTATION_03, MS_IOCTL_AFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Implementation Defined", "ident", "AFR0", "Implementation Defined" },
+    { BO_V8A_AFR0_IMPLEMENTATION_04, MS_IOCTL_AFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "Implementation Defined", "ident", "AFR0", "Implementation Defined" },
+    { BO_V8A_AFR0_RESERVED, MS_IOCTL_AFR0, NS_PRIVILEGE_LEVEL_1, 16, 16, "Reserved", "ident", "AFR0", "Reserved" },
+        
+    { BO_V8A_AA64AFR0_EL1_IMPLEMENTATION_01, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { BO_V8A_AA64AFR0_EL1_IMPLEMENTATION_02, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { BO_V8A_AA64AFR0_EL1_IMPLEMENTATION_03, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { BO_V8A_AA64AFR0_EL1_IMPLEMENTATION_04, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { BO_V8A_AA64AFR0_EL1_IMPLEMENTATION_05, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { BO_V8A_AA64AFR0_EL1_IMPLEMENTATION_06, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { BO_V8A_AA64AFR0_EL1_IMPLEMENTATION_07, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { BO_V8A_AA64AFR0_EL1_IMPLEMENTATION_08, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { BO_V8A_AA64AFR0_EL1_RESERVED, MS_IOCTL_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 32, 32, "Reserved", "ident", "AA64AFR0", "Reserved" },
+
+    { BO_V8A_AA64AFR1_EL1_IMPLEMENTATION_01, MS_IOCTL_AA64AFR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Implementation Defined", "ident", "AA64AFR1", "Implementation Defined" },
+    
+    { BO_V8A_AA64DFR0_EL1_DEBUGVER, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "DebugVer", "ident", "AA64DFR0", "Debug architecture version" },
+    { BO_V8A_AA64DFR0_EL1_TRACEVER, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "TraceVer", "ident", "AA64DFR0", "Trace support" },
+    { BO_V8A_AA64DFR0_EL1_PMUVER, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "PMUVer", "ident", "AA64DFR0", "Performance Monitors extension version" },
+    { BO_V8A_AA64DFR0_EL1_BRPS, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "BRPs", "ident", "AA64DFR0", "Number of breakpoints" },
+    { BO_V8A_AA64DFR0_EL1_RESERVED_1, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Reserved", "ident", "AA64DFR0", "Reserved" },
+    { BO_V8A_AA64DFR0_EL1_WRPS, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "WRPs", "ident", "AA64DFR0", "Number of watchpoints" },
+    { BO_V8A_AA64DFR0_EL1_RESERVED_2, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Reserved", "ident", "AA64DFR0", "Reserved" },
+    { BO_V8A_AA64DFR0_EL1_CTX_CMPS, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "CTX_CMPs", "ident", "AA64DFR0", "Number of breakpoints that are context aware" },
+    { BO_V8A_AA64DFR0_EL1_RESERVED_3, MS_IOCTL_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 32, 32, "Reserved", "ident", "AA64DFR0", "Reserved" },
+    
+    { BO_V8A_AA64DFR1_EL1_RESERVED, MS_IOCTL_AA64DFR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reserved", "ident", "AA64DFR1", "Reserved" },
+        
+    { BO_V8A_MMFR0_VMSA, MS_IOCTL_MMFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "VMSA support", "ident", "MMFR0", "VMSA Support" },
+    { BO_V8A_MMFR0_PMSA, MS_IOCTL_MMFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "PMSA support", "ident", "MMFR0", "PMSA Support" },
+    { BO_V8A_MMFR0_OUTSHARE, MS_IOCTL_MMFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Outermost shareability", "ident", "MMFR0", "Outermost shareability" },
+    { BO_V8A_MMFR0_SHARE, MS_IOCTL_MMFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "Shareability levels", "ident", "MMFR0", "Shareability levels" },
+    { BO_V8A_MMFR0_TCM, MS_IOCTL_MMFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "TCM support", "ident", "MMFR0", "TCM/DMA Support" },
+    { BO_V8A_MMFR0_AUX, MS_IOCTL_MMFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Auxiliary registers", "ident", "MMFR0", "Auxiliary registers" },
+    { BO_V8A_MMFR0_FCSE, MS_IOCTL_MMFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "FCSE support", "ident", "MMFR0", "FCSE support" },
+    { BO_V8A_MMFR0_INSHARE, MS_IOCTL_MMFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "Innermost shareability", "ident", "MMFR0", "Innermost shareability" },
+    
+    { BO_V8A_MMFR1_L1HCVA, MS_IOCTL_MMFR1, NS_PRIVILEGE_LEVEL_1, 0, 4, "L1 Harvard cache VA", "ident", "MMFR1", "L1 Harvard cache VA" },
+    { BO_V8A_MMFR1_L1UCVA, MS_IOCTL_MMFR1, NS_PRIVILEGE_LEVEL_1, 4, 4, "L1 unified cache VA", "ident", "MMFR1", "L1 unified cache VA" },
+    { BO_V8A_MMFR1_L1HCSW, MS_IOCTL_MMFR1, NS_PRIVILEGE_LEVEL_1, 8, 4, "L1 Harvard cache set/way", "ident", "MMFR1", "Harvard cache set/way" },
+    { BO_V8A_MMFR1_L1UCSW, MS_IOCTL_MMFR1, NS_PRIVILEGE_LEVEL_1, 12, 4, "L1 unified cache set/way", "ident", "MMFR1", "L1 unified cache set/way" },
+    { BO_V8A_MMFR1_L1HC, MS_IOCTL_MMFR1, NS_PRIVILEGE_LEVEL_1, 16, 4, "L1 Harvard cache", "ident", "MMFR1", "L1 Harvard cache" },
+    { BO_V8A_MMFR1_L1UC, MS_IOCTL_MMFR1, NS_PRIVILEGE_LEVEL_1, 20, 4, "L1 unified cache VA", "ident", "MMFR1", "L1 unified cache" },
+    { BO_V8A_MMFR1_L1CTAC, MS_IOCTL_MMFR1, NS_PRIVILEGE_LEVEL_1, 24, 4, "L1 cache test and clean", "ident", "MMFR1", "L1 cache test and clean" },
+    { BO_V8A_MMFR1_BP, MS_IOCTL_MMFR1, NS_PRIVILEGE_LEVEL_1, 28, 4, "Branch predictor", "ident", "MMFR1", "Branch predictor" },
+    
+    { BO_V8A_MMFR2_L1HFGF, MS_IOCTL_MMFR2, NS_PRIVILEGE_LEVEL_1, 0, 4, "L1 Harvard fg fetch", "ident", "MMFR2", "L1 Harvard fg fetch" },
+    { BO_V8A_MMFR2_L1HBGF, MS_IOCTL_MMFR2, NS_PRIVILEGE_LEVEL_1, 4, 4, "L1 Harvard bg fetch", "ident", "MMFR2", "L1 Harvard bg fetch" },
+    { BO_V8A_MMFR2_L1HR, MS_IOCTL_MMFR2, NS_PRIVILEGE_LEVEL_1, 8, 4, "L1 Harvard range", "ident", "MMFR2", "L1 Harvard range" },
+    { BO_V8A_MMFR2_HTLB, MS_IOCTL_MMFR2, NS_PRIVILEGE_LEVEL_1, 12, 4, "Harvard TLB", "ident", "MMFR2", "Harvard TLB" },
+    { BO_V8A_MMFR2_UTLB, MS_IOCTL_MMFR2, NS_PRIVILEGE_LEVEL_1, 16, 4, "Unified TLB", "ident", "MMFR2", "Unified TLB" },
+    { BO_V8A_MMFR2_MEMBAR, MS_IOCTL_MMFR2, NS_PRIVILEGE_LEVEL_1, 20, 4, "Mem barrier", "ident", "MMFR2", "Mem barrier" },
+    { BO_V8A_MMFR2_WFI, MS_IOCTL_MMFR2, NS_PRIVILEGE_LEVEL_1, 24, 4, "WFI stall", "ident", "MMFR2", "WFI stall" },
+    { BO_V8A_MMFR2_HWACCESS, MS_IOCTL_MMFR2, NS_PRIVILEGE_LEVEL_1, 28, 4, "HW Access flag", "ident", "MMFR2", "HW Access flag" },
+    
+    { BO_V8A_MMFR3_CMMVA, MS_IOCTL_MMFR3, NS_PRIVILEGE_LEVEL_1, 0, 4, "Cache maintain MVA", "ident", "MMFR3", "Cache maintain MVA" },
+    { BO_V8A_MMFR3_CMSW, MS_IOCTL_MMFR3, NS_PRIVILEGE_LEVEL_1, 4, 4, "Cache maintain set/way", "ident", "MMFR3", "Cache maintain set/way" },
+    { BO_V8A_MMFR3_BPM, MS_IOCTL_MMFR3, NS_PRIVILEGE_LEVEL_1, 8, 4, "BP maintain", "ident", "MMFR3", "BP maintain" },
+    { BO_V8A_MMFR3_MB, MS_IOCTL_MMFR3, NS_PRIVILEGE_LEVEL_1, 12, 4, "Maintenance broadcast", "ident", "MMFR3", "Maintenance broadcast" },
+    { BO_V8A_MMFR3_RESERVED, MS_IOCTL_MMFR3, NS_PRIVILEGE_LEVEL_1, 16, 4, "Reserved", "ident", "MMFR3", "Reserved" },
+    { BO_V8A_MMFR3_CW, MS_IOCTL_MMFR3, NS_PRIVILEGE_LEVEL_1, 20, 4, "Coherent walk", "ident", "MMFR3", "Coherent walk" },
+    { BO_V8A_MMFR3_CMS, MS_IOCTL_MMFR3, NS_PRIVILEGE_LEVEL_1, 24, 4, "Cached memory size", "ident", "MMFR3", "Cached memory size" },
+    { BO_V8A_MMFR3_SS, MS_IOCTL_MMFR3, NS_PRIVILEGE_LEVEL_1, 28, 4, "Supersection support", "ident", "MMFR3", "Supersection support" },
+    
+    { BO_V8A_MMFR4_RESERVED_01, MS_IOCTL_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { BO_V8A_MMFR4_AC2, MS_IOCTL_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "AC2", "ident", "MMFR4", "Extension of ACTLR/HACTLR into register ACTLR2/HACTLR2" },
+    { BO_V8A_MMFR4_RESERVED_02, MS_IOCTL_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { BO_V8A_MMFR4_RESERVED_03, MS_IOCTL_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { BO_V8A_MMFR4_RESERVED_04, MS_IOCTL_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { BO_V8A_MMFR4_RESERVED_05, MS_IOCTL_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { BO_V8A_MMFR4_RESERVED_06, MS_IOCTL_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { BO_V8A_MMFR4_RESERVED_07, MS_IOCTL_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    
+    { BO_V8A_AA64MMFR0_EL1_PARANGE, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "PARange", "ident", "AA64MMFR0", "Physical address range supported" },
+    { BO_V8A_AA64MMFR0_EL1_ASIDBITS, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "ASIDBits", "ident", "AA64MMFR0", "Number of ASID bits supported" },
+    { BO_V8A_AA64MMFR0_EL1_BIGEND, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "BigEnd", "ident", "AA64MMFR0", "Mixed-endian configuration support" },
+    { BO_V8A_AA64MMFR0_EL1_SNSMEM, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "SNSMem", "ident", "AA64MMFR0", "Secure versus non-secure memory distinction" },
+    { BO_V8A_AA64MMFR0_EL1_BIGENDEL0, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "BigEndEL0", "ident", "AA64MMFR0", "Mixed-endian support at EL0 only" },
+    { BO_V8A_AA64MMFR0_EL1_TGRAN16, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "TGran16", "ident", "AA64MMFR0", "Support for 16KB memory translation granule size" },
+    { BO_V8A_AA64MMFR0_EL1_TGRAN64, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "TGran64", "ident", "AA64MMFR0", "Support for 64KB memory translation granule size" },
+    { BO_V8A_AA64MMFR0_EL1_TGRAN4, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "TGran4", "ident", "AA64MMFR0", "Support for 4KB memory translation granule size" },
+    { BO_V8A_AA64MMFR0_EL1_RESERVED, MS_IOCTL_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 32, 32, "Reserved", "ident", "AA64MMFR0", "Reserved" },
+    
+    { BO_V8A_AA64MMFR1_EL1_RESERVED, MS_IOCTL_AA64MMFR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reserved", "ident", "AA64MMFR1", "Reserved" },
+        
+    { BO_V8A_ISAR0_SWAP, MS_IOCTL_ISAR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Swap_instrs", "ident", "ISAR0", "Swap_instrs" },
+    { BO_V8A_ISAR0_BITCOUNT, MS_IOCTL_ISAR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "BitCount_instrs", "ident", "ISAR0", "BitCount_instrs" },
+    { BO_V8A_ISAR0_BITFIELD, MS_IOCTL_ISAR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Bitfield_instrs", "ident", "ISAR0", "Bitfield_instrs" },
+    { BO_V8A_ISAR0_CMPBRANCH, MS_IOCTL_ISAR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "CmpBranch_instrs", "ident", "ISAR0", "Compare and Branch instructions" },
+    { BO_V8A_ISAR0_COPROC, MS_IOCTL_ISAR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Coproc_instrs", "ident", "ISAR0", "Coprocessor instructions" },
+    { BO_V8A_ISAR0_DEBUG, MS_IOCTL_ISAR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Debug_instrs", "ident", "ISAR0", "Debug instructions" },
+    { BO_V8A_ISAR0_DIVIDE, MS_IOCTL_ISAR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Divide_instrs", "ident", "ISAR0", "Divide instructions" },
+    { BO_V8A_ISAR0_RESERVED, MS_IOCTL_ISAR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "Reserved", "ident", "ISAR0", "Reserved" },
+    
+    { BO_V8A_ISAR1_ENDIAN, MS_IOCTL_ISAR1, NS_PRIVILEGE_LEVEL_1, 0, 4, "Ending_instrs", "ident", "ISAR1", "Endian instructions" },
+    { BO_V8A_ISAR1_EXCEPT, MS_IOCTL_ISAR1, NS_PRIVILEGE_LEVEL_1, 4, 4, "Except_instrs", "ident", "ISAR1", "Exception-handling instructions" },
+    { BO_V8A_ISAR1_EXCEPTAR, MS_IOCTL_ISAR1, NS_PRIVILEGE_LEVEL_1, 8, 4, "Except_AR_instrs", "ident", "ISAR1", "A & R profile exception-handling instructions" },
+    { BO_V8A_ISAR1_EXTEND, MS_IOCTL_ISAR1, NS_PRIVILEGE_LEVEL_1, 12, 4, "Extend_instrs", "ident", "ISAR1", "Extend instructions" },
+    { BO_V8A_ISAR1_IFTHEN, MS_IOCTL_ISAR1, NS_PRIVILEGE_LEVEL_1, 16, 4, "IfThen_instrs", "ident", "ISAR1", "If-Then instructions in Thumb" },
+    { BO_V8A_ISAR1_IMM, MS_IOCTL_ISAR1, NS_PRIVILEGE_LEVEL_1, 20, 4, "Immediate_instrs", "ident", "ISAR1", "Data processing instructions on long immediates" },
+    { BO_V8A_ISAR1_INTER, MS_IOCTL_ISAR1, NS_PRIVILEGE_LEVEL_1, 24, 4, "Interwork_instrs", "ident", "ISAR1", "Interworking instructions" },
+    { BO_V8A_ISAR1_JAZELLE, MS_IOCTL_ISAR1, NS_PRIVILEGE_LEVEL_1, 28, 4, "Jazelle_instrs", "ident", "ISAR1", "Jazelle extension instructions" },
+        
+    { BO_V8A_ISAR2_LOADSTORE, MS_IOCTL_ISAR2, NS_PRIVILEGE_LEVEL_1, 0, 4, "LoadStore_instrs", "ident", "ISAR2", "Additional load/store instructions" },
+    { BO_V8A_ISAR2_MEMHINT, MS_IOCTL_ISAR2, NS_PRIVILEGE_LEVEL_1, 4, 4, "MemHint_instrs", "ident", "ISAR2", "Memory Hint instructions" },
+    { BO_V8A_ISAR2_MULTIACCESS, MS_IOCTL_ISAR2, NS_PRIVILEGE_LEVEL_1, 8, 4, "MultiAccessInt_instrs", "ident", "ISAR2", "Interruptible multi-access instructions" },
+    { BO_V8A_ISAR2_MULTINSTRS, MS_IOCTL_ISAR2, NS_PRIVILEGE_LEVEL_1, 12, 4, "Mult_instrs", "ident", "ISAR2", "Additional multiply instructions" },
+    { BO_V8A_ISAR2_MULTSINSTRS, MS_IOCTL_ISAR2, NS_PRIVILEGE_LEVEL_1, 16, 4, "MultS_instrs", "ident", "ISAR2", "Advanced signed Multiply instructions" },
+    { BO_V8A_ISAR2_MULTUINSTRS, MS_IOCTL_ISAR2, NS_PRIVILEGE_LEVEL_1, 20, 4, "MultU_instrs", "ident", "ISAR2", "Advanced unsigned Multiply instructions" },
+    { BO_V8A_ISAR2_PSRAR, MS_IOCTL_ISAR2, NS_PRIVILEGE_LEVEL_1, 24, 4, "PSR_AR_instrs", "ident", "ISAR2", "Instructions to manipulate PSR" },
+    { BO_V8A_ISAR2_REVERSAL, MS_IOCTL_ISAR2, NS_PRIVILEGE_LEVEL_1, 28, 4, "Reversal_instrs", "ident", "ISAR2", "Implemented Reversal instructions" },
+    
+    { BO_V8A_ISAR3_SATURATE, MS_IOCTL_ISAR3, NS_PRIVILEGE_LEVEL_1, 0, 4, "Saturate_instrs", "ident", "ISAR3", "Implemented Saturate instructions" },
+    { BO_V8A_ISAR3_SIMD, MS_IOCTL_ISAR3, NS_PRIVILEGE_LEVEL_1, 4, 4, "SIMD_instrs", "ident", "ISAR3", "Implemented SIMD instructions" },
+    { BO_V8A_ISAR3_SVC, MS_IOCTL_ISAR3, NS_PRIVILEGE_LEVEL_1, 8, 4, "SVC_instrs", "ident", "ISAR3", "Implemented SVC instructions" },
+    { BO_V8A_ISAR3_SYNCHPRIM, MS_IOCTL_ISAR3, NS_PRIVILEGE_LEVEL_1, 12, 4, "SynchPrim_instrs", "ident", "ISAR3", " Synchronization Primitive instructions" },
+    { BO_V8A_ISAR3_TABBRANCH, MS_IOCTL_ISAR3, NS_PRIVILEGE_LEVEL_1, 16, 4, "TabBranch_instrs", "ident", "ISAR3", "Table Branch instructions in Thumb" },
+    { BO_V8A_ISAR3_THUMBCOPY, MS_IOCTL_ISAR3, NS_PRIVILEGE_LEVEL_1, 20, 4, "ThumbCopy_instrs", "ident", "ISAR3", "Thumb non-flag setting MOV instructions" },
+    { BO_V8A_ISAR3_TRUENOP, MS_IOCTL_ISAR3, NS_PRIVILEGE_LEVEL_1, 24, 4, "TrueNOP_instrs", "ident", "ISAR3", "Implemented True NOP instructions" },
+    { BO_V8A_ISAR3_THUMBEE, MS_IOCTL_ISAR3, NS_PRIVILEGE_LEVEL_1, 28, 4, "ThumbEE_extn_instrs", "ident", "ISAR3", "Thumb Execution Environment Extension instructions" },
+    
+    { BO_V8A_ISAR4_UNPRIV, MS_IOCTL_ISAR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Unpriv_instrs", "ident", "ISAR4", "Implemented Unprivileged instructions" },
+    { BO_V8A_ISAR4_WITHSHIFTS, MS_IOCTL_ISAR4, NS_PRIVILEGE_LEVEL_1, 4, 4, "WithShifts_instrs", "ident", "ISAR4", "Support for instructions with shifts" },
+    { BO_V8A_ISAR4_WRITEBACK, MS_IOCTL_ISAR4, NS_PRIVILEGE_LEVEL_1, 8, 4, "Writeback_instrs", "ident", "ISAR4", "Writeback addressing modes" },
+    { BO_V8A_ISAR4_SMC, MS_IOCTL_ISAR4, NS_PRIVILEGE_LEVEL_1, 12, 4, "SMC_instrs", "ident", "ISAR4", "SMC instructions" },
+    { BO_V8A_ISAR4_BARRIER, MS_IOCTL_ISAR4, NS_PRIVILEGE_LEVEL_1, 16, 4, "Barrier_instrs", "ident", "ISAR4", "Barrier instructions" },
+    { BO_V8A_ISAR4_SYNCHPRIM, MS_IOCTL_ISAR4, NS_PRIVILEGE_LEVEL_1, 20, 4, "SynchPrim_instrs", "ident", "ISAR4", "Implemented Synchronization Primitive instructions" },
+    { BO_V8A_ISAR4_PSRM, MS_IOCTL_ISAR4, NS_PRIVILEGE_LEVEL_1, 24, 4, "PSR_M_instrs", "ident", "ISAR4", "M profile instructions to modify PSR" },
+    { BO_V8A_ISAR4_SWP, MS_IOCTL_ISAR4, NS_PRIVILEGE_LEVEL_1, 28, 4, "SWP_frac", "ident", "ISAR4", "Bus locking on SWP or SWPB" },
+    
+    { BO_V8A_ISAR5_EL1_SEVL, MS_IOCTL_ISAR5, NS_PRIVILEGE_LEVEL_1, 0, 4, "SEVL", "ident", "ISAR5", "Indicates that SEVL is implemented in AArch32" },
+    { BO_V8A_ISAR5_EL1_AES, MS_IOCTL_ISAR5, NS_PRIVILEGE_LEVEL_1, 4, 4, "AES", "ident", "ISAR5", "AES implemented in AArch32" },
+    { BO_V8A_ISAR5_EL1_SHA1, MS_IOCTL_ISAR5, NS_PRIVILEGE_LEVEL_1, 8, 4, "SHA1", "ident", "ISAR5", "SHA1 implemented in AArch32" },
+    { BO_V8A_ISAR5_EL1_SHA2, MS_IOCTL_ISAR5, NS_PRIVILEGE_LEVEL_1, 12, 4, "SHA2", "ident", "ISAR5", "SHA2 implemented in AArch32" },
+    { BO_V8A_ISAR5_EL1_CRC32, MS_IOCTL_ISAR5, NS_PRIVILEGE_LEVEL_1, 16, 4, "CRC32", "ident", "ISAR5", "CRC32 implemented in AArch32" },
+    { BO_V8A_ISAR5_EL1_RESERVED, MS_IOCTL_ISAR5, NS_PRIVILEGE_LEVEL_1, 20, 12, "Reserved", "ident", "ISAR5", "Reserved" },
+    
+    
+    { BO_V8A_AA64ISAR0_EL1_RESERVED_01, MS_IOCTL_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "AA64ISAR0", "Reserved" },
+    { BO_V8A_AA64ISAR0_EL1_AES, MS_IOCTL_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "AES", "ident", "AA64ISAR0", "AES instructions implemented" },
+    { BO_V8A_AA64ISAR0_EL1_SHA1, MS_IOCTL_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "SHA1", "ident", "AA64ISAR0", "SHA1 instructions implemented" },
+    { BO_V8A_AA64ISAR0_EL1_SHA2, MS_IOCTL_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "SHA2", "ident", "AA64ISAR0", "SHA2 instructions implemented" },
+    { BO_V8A_AA64ISAR0_EL1_CRC32, MS_IOCTL_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "CRC32", "ident", "AA64ISAR0", "CRC instructions implemented" },
+    { BO_V8A_AA64ISAR0_EL1_RESERVED_02, MS_IOCTL_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 20, 44, "Reserved", "ident", "AA64ISAR0", "Reserved" },
+    
+    { BO_V8A_AA64ISAR1_EL1_RESERVED, MS_IOCTL_AA64ISAR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reserved", "ident", "AA64ISAR1", "Reserved" },
+    
+    
+    { BO_V8A_REVIDR_IMPLEMENTATION, MS_IOCTL_REVIDR, NS_PRIVILEGE_LEVEL_1, 0, 32, "Reserved", "ident", "REVIDR", "Implementation Defined" },
+    
+    { BO_V8A_TLBTR_NU, MS_IOCTL_TLBTR, NS_PRIVILEGE_LEVEL_1, 0, 1, "nU", "ident", "TLBTR", "[0] Not Unified TLB" },
+    { BO_V8A_TLBTR_IMPLEMENTATION, MS_IOCTL_TLBTR, NS_PRIVILEGE_LEVEL_1, 1, 31, "Implementation Defined", "ident", "TLBTR", "Implementation Defined" },
+    
+    { BO_V8A_CCSIDR_EL1_LINESIZE, MS_IOCTL_CCSIDR, NS_PRIVILEGE_LEVEL_1, 0, 3, "LineSize", "ident", "CCSIDR", "Number of words in cache line" },
+    { BO_V8A_CCSIDR_EL1_ASSOCIATIVITY, MS_IOCTL_CCSIDR, NS_PRIVILEGE_LEVEL_1, 3, 10, "Associativity", "ident", "CCSIDR", "Associativity of cache" },
+    { BO_V8A_CCSIDR_EL1_NUMSETS, MS_IOCTL_CCSIDR, NS_PRIVILEGE_LEVEL_1, 13, 15, "NumSets", "ident", "CCSIDR", "Number of sets in cache" },
+    { BO_V8A_CCSIDR_EL1_WA, MS_IOCTL_CCSIDR, NS_PRIVILEGE_LEVEL_1, 28, 1, "WA", "ident", "CCSIDR", "Write allocation" },
+    { BO_V8A_CCSIDR_EL1_RA, MS_IOCTL_CCSIDR, NS_PRIVILEGE_LEVEL_1, 29, 1, "RA", "ident", "CCSIDR", "Read allocation" },
+    { BO_V8A_CCSIDR_EL1_WB, MS_IOCTL_CCSIDR, NS_PRIVILEGE_LEVEL_1, 30, 1, "WB", "ident", "CCSIDR", "Write back" },
+    { BO_V8A_CCSIDR_EL1_WT, MS_IOCTL_CCSIDR, NS_PRIVILEGE_LEVEL_1, 31, 1, "WT", "ident", "CCSIDR", "Write through" },
+    
+    { BO_V8A_TCMTR_IMPLEMENTATION, MS_IOCTL_TCMTR, NS_PRIVILEGE_LEVEL_1, 0, 29, "Implementation Defined", "ident", "TCMTR", "Implementation Defined" },
+    { BO_V8A_TCMTR_FORMAT, MS_IOCTL_TCMTR, NS_PRIVILEGE_LEVEL_1, 29, 3, "Format", "ident", "TCMTR", "Implemented TCMTR format" },
+        
+    { BO_V8A_AIDR_EL1_IMPLEMENTATION, MS_IOCTL_AIDR, NS_PRIVILEGE_LEVEL_1, 0, 32, "Implementation Defined", "ident", "AIDR", "Implementation Defined" },
+    
+    { BO_V8A_CLIDR_EL1_CTYPE1, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 0, 3, "Ctype1", "ident", "CLIDR", "Cache type" },
+    { BO_V8A_CLIDR_EL1_CTYPE2, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 3, 3, "Ctype2", "ident", "CLIDR", "Cache type" },
+    { BO_V8A_CLIDR_EL1_CTYPE3, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 6, 3, "Ctype3", "ident", "CLIDR", "Cache type" },
+    { BO_V8A_CLIDR_EL1_CTYPE4, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 9, 3, "Ctype4", "ident", "CLIDR", " Cache type" },
+    { BO_V8A_CLIDR_EL1_CTYPE5, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 12, 3, "Ctype5", "ident", "CLIDR", "Cache type" },
+    { BO_V8A_CLIDR_EL1_CTYPE6, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 15, 3, "Ctype6", "ident", "CLIDR", "Cache type" },
+    { BO_V8A_CLIDR_EL1_CTYPE7, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 18, 3, "Ctype7", "ident", "CLIDR", "Cache type" },
+    { BO_V8A_CLIDR_EL1_LOUIS, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 21, 3, "LoUIS", "ident", "CLIDR", "Level of Unification Inner Shareable" },
+    { BO_V8A_CLIDR_EL1_LOC, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 24, 3, "LoC", "ident", "CLIDR", "Level of Coherence" },
+    { BO_V8A_CLIDR_EL1_LOUU, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 27, 3, "LoUU", "ident", "CLIDR", "Level of Unification Uniprocessor" },
+    { BO_V8A_CLIDR_EL1_ICB, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 30, 2, "Reserved", "ident", "CLIDR", "Reserved" },
+    { BO_V8A_CLIDR_EL1_RESERVED, MS_IOCTL_CLIDR, NS_PRIVILEGE_LEVEL_1, 32, 32, "Reserved", "ident", "CLIDR", "Reserved" },
+    
+    { BO_V8A_CSSELR_EL1_IND, MS_IOCTL_CSSELR, NS_PRIVILEGE_LEVEL_1, 0, 1, "InD", "ident", "CSSELR", "Instruction not Data bit" },
+    { BO_V8A_CSSELR_EL1_LEVEL, MS_IOCTL_CSSELR, NS_PRIVILEGE_LEVEL_1, 1, 3, "Level", "ident", "CSSELR", "Level" },
+    { BO_V8A_CSSELR_EL1_RESERVED, MS_IOCTL_CSSELR, NS_PRIVILEGE_LEVEL_1, 4, 28, "Reserved", "ident", "CSSELR", "Reserved" },
+    
+    { BO_V8A_CTR_EL0_IMINLINE, MS_IOCTL_CTR, NS_PRIVILEGE_LEVEL_0, 0, 4, "IminLine", "ident", "CTR", "IminLine" },
+    { BO_V8A_CTR_EL0_RESERVED_01, MS_IOCTL_CTR, NS_PRIVILEGE_LEVEL_0, 4, 10, "Reserved", "ident", "CTR", "Reserved" },
+    { BO_V8A_CTR_EL0_L1IP, MS_IOCTL_CTR, NS_PRIVILEGE_LEVEL_0, 14, 2, "L1Ip", "ident", "CTR", "Level 1 instruction cache policy" },
+    { BO_V8A_CTR_EL0_DMINLINE, MS_IOCTL_CTR, NS_PRIVILEGE_LEVEL_0, 16, 4, "DminLine", "ident", "CTR", "DminLine" },
+    { BO_V8A_CTR_EL0_ERG, MS_IOCTL_CTR, NS_PRIVILEGE_LEVEL_0, 20, 4, "ERG", "ident", "CTR", "Exclusives Reservation Granule" },
+    { BO_V8A_CTR_EL0_CWG, MS_IOCTL_CTR, NS_PRIVILEGE_LEVEL_0, 24, 4, "CWG", "ident", "CTR", "Cache Write-back Granule" },
+    { BO_V8A_CTR_EL0_RESERVED_02, MS_IOCTL_CTR, NS_PRIVILEGE_LEVEL_0, 28, 3, "Reserved", "ident", "CTR", "Reserved" },
+    { BO_V8A_CTR_EL0_RESERVED_03, MS_IOCTL_CTR, NS_PRIVILEGE_LEVEL_0, 31, 1, "Reserved", "ident", "CTR", "Reserved" },
+    
+    { BO_V8A_MIDR_REVISION, MS_IOCTL_MIDR, NS_PRIVILEGE_LEVEL_1, 0, 4, "Revision", "ident", "MIDR", "Revision" },
+    { BO_V8A_MIDR_PARTNUMBER, MS_IOCTL_MIDR, NS_PRIVILEGE_LEVEL_1, 4, 12, "Primary part number", "ident", "MIDR", "Primary part number" },
+    { BO_V8A_MIDR_ARCH, MS_IOCTL_MIDR, NS_PRIVILEGE_LEVEL_1, 16, 4, "Architecture", "ident", "MIDR", "Architecture" },
+    { BO_V8A_MIDR_VARIANT, MS_IOCTL_MIDR, NS_PRIVILEGE_LEVEL_1, 20, 4, "Variant", "ident", "MIDR", "Variant" },
+    { BO_V8A_MIDR_IMPLEMENTER, MS_IOCTL_MIDR, NS_PRIVILEGE_LEVEL_1, 24, 8, "Implementer", "ident", "MIDR", "Implementer" },
+    
+    { BO_V8A_MPIDR_AFF0, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 0, 8, "Aff0", "ident", "MPIDR", "Affinity level 0" },
+    { BO_V8A_MPIDR_AFF1, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 8, 8, "Aff1", "ident", "MPIDR", "Affinity level 1" },
+    { BO_V8A_MPIDR_AFF2, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 16, 8, "Aff2", "ident", "MPIDR", "Affinity level 2" },
+    { BO_V8A_MPIDR_MT, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 24, 1, "MT", "ident", "MPIDR", "Affinity dependence" },
+    { BO_V8A_MPIDR_RESERVED_01, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 25, 5, "Reserved", "ident", "MPIDR", "Reserved" },
+    { BO_V8A_MPIDR_U, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 30, 1, "U", "ident", "MPIDR", "Uniprocessor system" },
+    { BO_V8A_MPIDR_RESERVED_02, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 31, 1, "Reserved", "ident", "MPIDR", "Reserved" },       
+    { BO_V8A_MPIDR_AFF3, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 32, 8, "Aff3", "ident", "MPIDR", "Affinity level 3" },      
+    { BO_V8A_MPIDR_RESERVED_03, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 40, 24, "Reserved", "ident", "MPIDR", "Reserved" },      
+
+    /* Floating Point Bitfields */
+    { BO_V8A_FPSID_REVISION, MS_IOCTL_FPSID, NS_PRIVILEGE_LEVEL_1, 0, 4, "Revision", "fp", "FPSID", "Revision number" },
+    { BO_V8A_FPSID_VARIANT, MS_IOCTL_FPSID, NS_PRIVILEGE_LEVEL_1, 4, 4, "Variant", "fp", "FPSID", "Variant number" },
+    { BO_V8A_FPSID_PARTNUMBER, MS_IOCTL_FPSID, NS_PRIVILEGE_LEVEL_1, 8, 8, "Part Number", "fp", "FPSID", "Part number" },
+    { BO_V8A_FPSID_SUBARCH, MS_IOCTL_FPSID, NS_PRIVILEGE_LEVEL_1, 16, 6, "Subarchitecture", "fp", "FPSID", "Subarchitecture version number" },
+    { BO_V8A_FPSID_SW, MS_IOCTL_FPSID, NS_PRIVILEGE_LEVEL_1, 23, 1, "SW", "fp", "FPSID", "Software emulation" },
+    { BO_V8A_FPSID_IMPLEMENTER, MS_IOCTL_FPSID, NS_PRIVILEGE_LEVEL_1, 24, 8, "Implementer", "fp", "FPSID", "Implementer" },
+    
+    { BO_V8A_FPSCR_IOC, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 0, 1, "IOC", "fp", "FPSCR", "Invalid Operation cumulative exception" },  
+    { BO_V8A_FPSCR_DZC, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 1, 1, "DZC", "fp", "FPSCR", "Division by Zero cumulative exception" },   
+    { BO_V8A_FPSCR_OFC, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 2, 1, "OFC", "fp", "FPSCR", "Overflow cumulative exception" },   
+    { BO_V8A_FPSCR_UFC, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 3, 1, "UFC", "fp", "FPSCR", "Underflow cumulative exception" },  
+    { BO_V8A_FPSCR_IXC, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 4, 1, "IXC", "fp", "FPSCR", "Inexact cumulative exception" },
+    { BO_V8A_FPSCR_RESERVED_01, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 5, 2, "Reserved", "fp", "FPSCR", "Reserved" },
+    { BO_V8A_FPSCR_IDC, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 7, 1, "IDC", "fp", "FPSCR", "Input Denormal cumulative exception" },
+    { BO_V8A_FPSCR_IOE, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 8, 1, "IOE", "fp", "FPSCR", "Invalid Operation exception trap enable" },
+    { BO_V8A_FPSCR_DZE, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 9, 1, "DZE", "fp", "FPSCR", "Division by Zero exception trap enable" },
+    { BO_V8A_FPSCR_OFE, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 10, 1, "OFE", "fp", "FPSCR", "Overflow exception trap enable" },
+    { BO_V8A_FPSCR_UFE, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 11, 1, "UFE", "fp", "FPSCR", "Underflow exception trap enable" },
+    { BO_V8A_FPSCR_IXE, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 12, 1, "IXE", "fp", "FPSCR", "Inexact exception trap enable" },
+    { BO_V8A_FPSCR_RESERVED_02, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 13, 2, "Reserved", "fp", "FPSCR", "Reserved" },
+    { BO_V8A_FPSCR_IDE, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 15, 1, "IDE", "fp", "FPSCR", "Input Denormal exception trap enable" },
+    { BO_V8A_FPSCR_LEN, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 16, 3, "LEN", "fp", "FPSCR", "ARM deprecated field" },
+    { BO_V8A_FPSCR_RESERVED_03, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 19, 1, "Reserved", "fp", "FPSCR", "Reserved" },
+    { BO_V8A_FPSCR_STRIDE, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 20, 2, "Stride", "fp", "FPSCR", "ARM deprecated field" },
+    { BO_V8A_FPSCR_RMODE, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 22, 2, "RMode", "fp", "FPSCR", "Rounding Mode control" },
+    { BO_V8A_FPSCR_FZ, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 24, 1, "FZ", "fp", "FPSCR", "Flush-to-zero" },
+    { BO_V8A_FPSCR_DN, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 25, 1, "DN", "fp", "FPSCR", "Default NaN" },
+    { BO_V8A_FPSCR_AHP, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 26, 1, "AHP", "fp", "FPSCR", "Alternative half-precision" },
+    { BO_V8A_FPSCR_QC, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 27, 1, "QC", "fp", "FPSCR", "Cumulative saturation bit" },
+    { BO_V8A_FPSCR_V, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 28, 1, "V", "fp", "FPSCR", "Overflow condition flag" },
+    { BO_V8A_FPSCR_C, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 29, 1, "C", "fp", "FPSCR", "Carry condition flag" },
+    { BO_V8A_FPSCR_Z, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 30, 1, "Z", "fp", "FPSCR", "Zero condition flag" },
+    { BO_V8A_FPSCR_N, MS_IOCTL_FPSCR, NS_PRIVILEGE_LEVEL_1, 31, 1, "N", "fp", "FPSCR", "Negative condition flag" },
+    
+    { BO_V8A_FPEXC_IMPLEMENTATION, MS_IOCTL_FPEXC, NS_PRIVILEGE_LEVEL_1, 0, 29, "Implementation Defined", "fp", "FPEXC", "Subarchitecture defined" },
+    { BO_V8A_FPEXC_EN, MS_IOCTL_FPEXC, NS_PRIVILEGE_LEVEL_1, 30, 1, "EN", "fp", "FPEXC", "Global enable for Advanced SIMD and Floating-point Extensions" },
+    { BO_V8A_FPEXC_EX, MS_IOCTL_FPEXC, NS_PRIVILEGE_LEVEL_1, 31, 1, "EX", "fp", "FPEXC", "Extent of saved records for Advanced SIMD and Floating-point systems" },
+    
+    { BO_V8A_MVFR0_ASIMD, MS_IOCTL_MVFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "A_SIMD registers", "fp", "MVFR0", "Support for Advanced SIMD register bank" },
+    { BO_V8A_MVFR0_SINGLEPRECISION, MS_IOCTL_MVFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "Single-precision", "fp", "MVFR0", "Support for Floating-point Extension single-precision operations" },
+    { BO_V8A_MVFR0_DOUBLEPRECISION, MS_IOCTL_MVFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Double-precision", "fp", "MVFR0", "Support for Floating-point Extension double-precision operations" },
+    { BO_V8A_MVFR0_VFPTRAPPING, MS_IOCTL_MVFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "VFP exception exception trapping", "fp", "MVFR0", "VFP support for exception handling" },
+    { BO_V8A_MVFR0_DIVIDE, MS_IOCTL_MVFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Divide", "fp", "MVFR0", "VFP divide support" },
+    { BO_V8A_MVFR0_SQUAREROOT, MS_IOCTL_MVFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Square root", "fp", "MVFR0", "VFP square root support" },
+    { BO_V8A_MVFR0_SHORTVECTORS, MS_IOCTL_MVFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Short vectors", "fp", "MVFR0", "VFP short vector support" },
+    { BO_V8A_MVFR0_VFPROUNDING, MS_IOCTL_MVFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "VFP rounding modes", "fp", "MVFR0", "VFP rounding modes support" },
+    
+    { BO_V8A_MVFR1_FTZ, MS_IOCTL_MVFR1, NS_PRIVILEGE_LEVEL_1, 0, 4, "FtZ mode", "fp", "MVFR1", "Flush-to-zero only" },
+    { BO_V8A_MVFR1_DNAN, MS_IOCTL_MVFR1, NS_PRIVILEGE_LEVEL_1, 4, 4, "D_NaN", "fp", "MVFR1", "Default NaN only" },
+    { BO_V8A_MVFR1_ASIMDLOAD, MS_IOCTL_MVFR1, NS_PRIVILEGE_LEVEL_1, 8, 4, "A_SIMD load/store", "fp", "MVFR1", "A_SIMD Load/store implementation" },
+    { BO_V8A_MVFR1_ASIMDINT, MS_IOCTL_MVFR1, NS_PRIVILEGE_LEVEL_1, 12, 4, "A_SIMD integer", "fp", "MVFR1", "A_SIMD integer instructions" },
+    { BO_V8A_MVFR1_ASIMDSPFP, MS_IOCTL_MVFR1, NS_PRIVILEGE_LEVEL_1, 16, 4, "A_SIMD SPFP", "fp", "MVFR1", "A_SIMD single-precision floating point conversion" },
+    { BO_V8A_MVFR1_ASIMDHPFP, MS_IOCTL_MVFR1, NS_PRIVILEGE_LEVEL_1, 20, 4, "A_SIMD HPFP", "fp", "MVFR1", "A_SIMD half-precision floating point conversion" },
+    { BO_V8A_MVFR1_VFPHPFP, MS_IOCTL_MVFR1, NS_PRIVILEGE_LEVEL_1, 24, 4, "VFP HPFP", "fp", "MVFR1", "Floating point implements half-precision floating-point conversion" },
+    { BO_V8A_MVFR1_ASIMDFMAC, MS_IOCTL_MVFR1, NS_PRIVILEGE_LEVEL_1, 28, 4, "A_SIMD FMAC", "fp", "MVFR1", "FP or A_SIMD implements fused multiply accumulate" },
+    
+    { BO_V8A_EL1_MVFR2_SIMDMISC, MS_IOCTL_MVFR2, NS_PRIVILEGE_LEVEL_1, 0, 4, "SIMDMisc", "fp", "MVFR2", "Support for miscellaneous Advanced SIMD features" },
+    { BO_V8A_EL1_MVFR2_FPMISC, MS_IOCTL_MVFR2, NS_PRIVILEGE_LEVEL_1, 4, 4, "FPMisc", "fp", "MVFR2", "Support for miscellaneous VFP features" },
+    { BO_V8A_EL1_MVFR2_RESERVED, MS_IOCTL_MVFR2, NS_PRIVILEGE_LEVEL_1, 8, 16, "Reserved", "fp", "MVFR2", "Reserved" },
+                
+    /* Security Extension Bitfields */
+    { BO_V8A_SCR_NS, MS_IOCTL_SCR, S_ALL, 0, 1, "NS", "secext", "SCR", "Non Secure Bit" },
+    { BO_V8A_SCR_IRQ, MS_IOCTL_SCR, S_ALL, 1, 1, "IRQ", "secext", "SCR", "IRQ Handler" },
+    { BO_V8A_SCR_FIQ, MS_IOCTL_SCR, S_ALL, 2, 1, "FIQ", "secext", "SCR", "FIQ Handler" },
+    { BO_V8A_SCR_EA, MS_IOCTL_SCR, S_ALL, 3, 1, "EA", "secext", "SCR", "External Abort Handler" },
+    { BO_V8A_SCR_FW, MS_IOCTL_SCR, S_ALL, 4, 1, "FW", "secext", "SCR", "F bit writeable" },
+    { BO_V8A_SCR_AW, MS_IOCTL_SCR, S_ALL, 5, 1, "AW", "secext", "SCR", "A bit writeable" },
+    { BO_V8A_SCR_NET, MS_IOCTL_SCR, S_ALL, 6, 1, "nET", "secext", "SCR", "Not Early Termination" },
+    { BO_V8A_SCR_SCD, MS_IOCTL_SCR, S_ALL, 7, 1, "SCD", "secext", "SCR", "Secure Monitor Call disable" },
+    { BO_V8A_SCR_HCE, MS_IOCTL_SCR, S_ALL, 8, 1, "HCE", "secext", "SCR", "HYP call enable" },
+    { BO_V8A_SCR_SIF, MS_IOCTL_SCR, S_ALL, 9, 1, "SIF", "secext", "SCR", "Secure Instruction Fetch bit" },
+    { BO_V8A_SCR_RESERVED, MS_IOCTL_SCR, S_ALL, 10, 22, "Reserved", "secext", "SCR", "Reserved" },
+    
+    { BO_V8A_ISR_RESERVED_01, MS_IOCTL_ISR, NS_PRIVILEGE_LEVEL_1, 0, 6, "Reserved", "secext", "ISR", "Reserved" },
+    { BO_V8A_ISR_F, MS_IOCTL_ISR, NS_PRIVILEGE_LEVEL_1, 6, 1, "F", "secext", "ISR", "FIQ pending bit" },
+    { BO_V8A_ISR_I, MS_IOCTL_ISR, NS_PRIVILEGE_LEVEL_1, 7, 1, "I", "secext", "ISR", "IRQ pending bit" },
+    { BO_V8A_ISR_A, MS_IOCTL_ISR, NS_PRIVILEGE_LEVEL_1, 8, 1, "A", "secext", "ISR", "External abort pending bit" },
+    { BO_V8A_ISR_RESERVED_02, MS_IOCTL_ISR, NS_PRIVILEGE_LEVEL_1, 9, 23, "Reserved", "secext", "ISR", "Reserved" },
+    
+    { BO_V8A_SDER_SUIDEN, MS_IOCTL_SDER, S_ALL, 0, 1, "SUIDEN", "secext", "SDER", "Secure user invasive debug" },
+    { BO_V8A_SDER_SUNIDEN, MS_IOCTL_SDER, S_ALL, 1, 1, "SUNIDEN", "secext", "SDER", "Secure user non-invasive debug" },
+    { BO_V8A_SDER_RESERVED, MS_IOCTL_SDER, S_ALL, 2, 30, "Reserved", "secext", "SDER", "Reserved" },
+    
+    { BO_V8A_VBAR_RESERVED, MS_IOCTL_VBAR, NS_PRIVILEGE_LEVEL_1, 0, 11, "Reserved", "secext", "VBAR", "Reserved" },
+    { BO_V8A_VBAR_VBA, MS_IOCTL_VBAR, NS_PRIVILEGE_LEVEL_1, 11, 53, "Vector Base Address", "secext", "VBAR", "Vector Base Address" },
+    
+    /* Debug Bitfields */
+    { BO_V8A_DBGDIDR_REVISION, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 0, 4, "Revision", "debug", "DBGDIDR", "Revision" },
+    { BO_V8A_DBGDIDR_VARIANT, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 4, 4, "Variant", "debug", "DBGDIDR", "Variant" },
+    { BO_V8A_DBGDIDR_RESERVED, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 8, 4, "Reserved", "debug", "DBGDIDR", "Reserved" },
+    { BO_V8A_DBGDIDR_SE_IMP, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 12, 1, "SE_imp", "debug", "DBGDIDR", "Security Extensions Implemented" },
+    { BO_V8A_DBGDIDR_PCSR_IMP, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 13, 1, "PCSR_imp", "debug", "DBGDIDR", "Program Counter Sampling Register" },
+    { BO_V8A_DBGDIDR_NSUHD_IMP, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 14, 1, "nSUHD_imp", "debug", "DBGDIDR", "Secure User Halting Debug" },
+    { BO_V8A_DBGDIDR_DEVID_IMP, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 15, 1, "DEVID_imp", "debug", "DBGDIDR", "Debug Device ID" },
+    { BO_V8A_DBGDIDR_VERSION, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 16, 4, "Version", "debug", "DBGDIDR", "Version" },
+    { BO_V8A_DBGDIDR_CTX_CMP, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 20, 4, "CTX_CMP", "debug", "DBGDIDR", "Context Compare Breakpoints" },
+    { BO_V8A_DBGDIDR_BRP, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 24, 4, "BRP", "debug", "DBGDIDR", "Number of breakpoints" },
+    { BO_V8A_DBGDIDR_WRP, MS_IOCTL_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 28, 4, "WRP", "debug", "DBGDIDR", "Number of Watchpoints Implemented" },
+    
+    { BO_V8A_DBGAUTHSTATUS_NSE, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 0, 1, "NSE", "debug", "DBGAUTHSTATUS", "Non-secure invasive debug" },
+    { BO_V8A_DBGAUTHSTATUS_NSI, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 1, 1, "NSI", "debug", "DBGAUTHSTATUS", " Non-secure invasive debug features" },
+    { BO_V8A_DBGAUTHSTATUS_NSNE, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 2, 1, "NSNE", "debug", "DBGAUTHSTATUS", "Non-secure non-invasive debug" },
+    { BO_V8A_DBGAUTHSTATUS_NSNI, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 3, 1, "NSNI", "debug", "DBGAUTHSTATUS", "Non-secure non-invasive debug" },
+    { BO_V8A_DBGAUTHSTATUS_SE, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 4, 1, "SE", "debug", "DBGAUTHSTATUS", "Secure invasive" },
+    { BO_V8A_DBGAUTHSTATUS_SI, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 5, 1, "SI", "debug", "DBGAUTHSTATUS", "Secure invasive features" },
+    { BO_V8A_DBGAUTHSTATUS_SNE, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 6, 1, "SNE", "debug", "DBGAUTHSTATUS", "Secure non-invasive" },
+    { BO_V8A_DBGAUTHSTATUS_SNI, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 7, 1, "SNI", "debug", "DBGAUTHSTATUS", "Secure non-invasive features" },
+    { BO_V8A_DBGAUTHSTATUS_RESERVED, MS_IOCTL_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 8, 24, "Reserved", "debug", "DBGAUTHSTATUS", "Reserved" },
+    
+    { BO_V8A_MDRAR_VALID, MS_IOCTL_DBGDRAR, NS_PRIVILEGE_LEVEL_1, 0, 2, "Valid", "debug", "DBGDRAR", "ROM table address is valid" },
+    { BO_V8A_MDRAR_RESERVED_01, MS_IOCTL_DBGDRAR, NS_PRIVILEGE_LEVEL_1, 2, 10, "Reserved", "debug", "DBGDRAR", "Reserved" },
+    { BO_V8A_MDRAR_ROMADDR, MS_IOCTL_DBGDRAR, NS_PRIVILEGE_LEVEL_1, 12, 36, "ROMADDR", "debug", "DBGDRAR", "Bits [47:12] of component physical address. [11:0] are zero." },
+    { BO_V8A_MDRAR_RESERVED_02, MS_IOCTL_DBGDRAR, NS_PRIVILEGE_LEVEL_1, 48, 16, "Reserved", "debug", "DBGDRAR", "Reserved" },      
+    
+    { BO_V8A_MDSCR_SS, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 0, 1, "SS", "debug", "DBGDSCR", "Enable software step" },
+    { BO_V8A_MDSCR_RESERVED_01, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 1, 5, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { BO_V8A_MDSCR_ERR, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 6, 1, "ERR", "debug", "DBGDSCR", "Used for save/restore of EDSCR.ERR" },
+    { BO_V8A_MDSCR_RESERVED_02, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 7, 5, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { BO_V8A_MDSCR_TDCC, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 12, 1, "TDCC", "debug", "DBGDSCR", "Trap user mode (EL0) access to the DCC registers to EL1" },
+    { BO_V8A_MDSCR_KDE, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 13, 1, "KDE", "debug", "DBGDSCR", "Local (kernel) debug enable" },
+    { BO_V8A_MDSCR_HDE, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 14, 1, "HDE", "debug", "DBGDSCR", "Used for save/restore of EDSCR.HDE" },
+    { BO_V8A_MDSCR_MDE, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 15, 1, "MDE", "debug", "DBGDSCR", "Monitor debug events" },
+    { BO_V8A_MDSCR_RESERVED_03, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 16, 3, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { BO_V8A_MDSCR_RESERVED_04, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 19, 2, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { BO_V8A_MDSCR_TDA, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 21, 1, "TDA", "debug", "DBGDSCR", "Used for save/restore of EDSCR.TDA" },
+    { BO_V8A_MDSCR_INTDIS, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 22, 2, "INTdis", "debug", "DBGDSCR", "Used for save/restore of EDSCR.INTdis" },
+    { BO_V8A_MDSCR_RESERVED_05, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 24, 2, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { BO_V8A_MDSCR_TXU, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 26, 1, "TXU", "debug", "DBGDSCR", "Used for save/restore of EDSCR.TXU" },
+    { BO_V8A_MDSCR_RXO, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 27, 1, "RXO", "debug", "DBGDSCR", "Used for save/restore of EDSCR.RXO" },
+    { BO_V8A_MDSCR_RESERVED_06, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 28, 1, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { BO_V8A_MDSCR_TXFULL, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 29, 1, "TXfull", "debug", "DBGDSCR", "Used for save/restore of EDSCR.TXfull" },
+    { BO_V8A_MDSCR_RXFULL, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 30, 1, "RXfull", "debug", "DBGDSCR", "Used for save/restore of EDSCR.RXfull" },
+    { BO_V8A_MDSCR_RESERVED_07, MS_IOCTL_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 31, 1, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    
+    /* Virtual Memory Bitfields */      
+    { BO_V8A_MAIR_ATTR0, MS_IOCTL_MAIR, NS_PRIVILEGE_LEVEL_1, 0, 8, "Attr0", "virtmem", "MAIR", "Memory attribute encoding" },
+    { BO_V8A_MAIR_ATTR1, MS_IOCTL_MAIR, NS_PRIVILEGE_LEVEL_1, 8, 8, "Attr1", "virtmem", "MAIR", "Memory attribute encoding" },
+    { BO_V8A_MAIR_ATTR2, MS_IOCTL_MAIR, NS_PRIVILEGE_LEVEL_1, 16, 8, "Attr2", "virtmem", "MAIR", "Memory attribute encoding" },
+    { BO_V8A_MAIR_ATTR3, MS_IOCTL_MAIR, NS_PRIVILEGE_LEVEL_1, 24, 8, "Attr3", "virtmem", "MAIR", "Memory attribute encoding" },    
+    { BO_V8A_MAIR_ATTR4, MS_IOCTL_MAIR, NS_PRIVILEGE_LEVEL_1, 32, 8, "Attr4", "virtmem", "MAIR", "Memory attribute encoding" },
+    { BO_V8A_MAIR_ATTR5, MS_IOCTL_MAIR, NS_PRIVILEGE_LEVEL_1, 40, 8, "Attr5", "virtmem", "MAIR", "Memory attribute encoding" },
+    { BO_V8A_MAIR_ATTR6, MS_IOCTL_MAIR, NS_PRIVILEGE_LEVEL_1, 48, 8, "Attr6", "virtmem", "MAIR", "Memory attribute encoding" },
+    { BO_V8A_MAIR_ATTR7, MS_IOCTL_MAIR, NS_PRIVILEGE_LEVEL_1, 56, 8, "Attr7", "virtmem", "MAIR", "Memory attribute encoding" },
+    
+    { BO_V8A_SCTLR_EL1_M, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 0, 1, "M", "virtmem", "SCTLR", "MMU Enable" },
+    { BO_V8A_SCTLR_EL1_A, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 1, 1, "A", "virtmem", "SCTLR", "Alignment check enable" },
+    { BO_V8A_SCTLR_EL1_C, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 2, 1, "C", "virtmem", "SCTLR", "Cache enable" },
+    { BO_V8A_SCTLR_EL1_SA, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 3, 1, "SA", "virtmem", "SCTLR", "Stack alignment check enable" },
+    { BO_V8A_SCTLR_EL1_SA0, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 4, 1, "SA0", "virtmem", "SCTLR", "Stack alignment check enable for EL0" },
+    { BO_V8A_SCTLR_EL1_CP15BEN, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 5, 1, "CP15BEN", "virtmem", "SCTLR", "CP15 barrier enable" },
+    { BO_V8A_SCTLR_EL1_RESERVED_01, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 6, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_ITD, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 7, 1, "ITD", "virtmem", "SCTLR", "Disables some uses of IT instructions at EL0 using AArch32" },
+    { BO_V8A_SCTLR_EL1_SED, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 8, 1, "SED", "virtmem", "SCTLR", "Disables the SETEND instruction at EL0 using AArch32" },
+    { BO_V8A_SCTLR_EL1_UMA, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 9, 1, "UMA", "virtmem", "SCTLR", "Traps EL0 execution of MSR and MRS instructions that access PSTATE" },
+    { BO_V8A_SCTLR_EL1_RESERVED_02, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 10, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_RESERVED_03, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 11, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_I, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 12, 1, "I", "virtmem", "SCTLR", "Instruction access Cacheability control" },
+    { BO_V8A_SCTLR_EL1_RESERVED_04, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 13, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_DZE, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 14, 1, "DZE", "virtmem", "SCTLR", "Traps EL0 execution of DC ZVA instructions to EL1" },
+    { BO_V8A_SCTLR_EL1_UCT, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 15, 1, "UCT", "virtmem", "SCTLR", "Traps EL0 access to the CTR_EL0 register to EL1" },
+    { BO_V8A_SCTLR_EL1_NTWI, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 16, 1, "NTWI", "virtmem", "SCTLR", "Traps EL0 execution of WFI instructions to EL1" },
+    { BO_V8A_SCTLR_EL1_RESERVED_05, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 17, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_NTWE, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 18, 1, "NTWE", "virtmem", "SCTLR", "Traps EL0 execution of WFE instructions to EL1" },
+    { BO_V8A_SCTLR_EL1_WXN, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 19, 1, "WXN", "virtmem", "SCTLR", "Write permission implies XN (Execute Never) at EL0/1" },
+    { BO_V8A_SCTLR_EL1_RESERVED_06, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 20, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_RESERVED_07, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 21, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_RESERVED_08, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 22, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_E0E, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 24, 1, "E0E", "virtmem", "SCTLR", "Endianess of data access at EL0" },
+    { BO_V8A_SCTLR_EL1_EE, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 25, 1, "EE", "virtmem", "SCTLR", "Endianess of data at EL1 and translation table walk" },
+    { BO_V8A_SCTLR_EL1_UCI, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 26, 1, "UCI", "virtmem", "SCTLR", "Traps EL0 cache maintenance instructions to EL1" },
+    { BO_V8A_SCTLR_EL1_RESERVED_09, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 27, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_RESERVED_10, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 28, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { BO_V8A_SCTLR_EL1_RESERVED_11, MS_IOCTL_SCTLR, NS_PRIVILEGE_LEVEL_1, 30, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    
+    { BO_V8A_CONTEXTIDR_EL1_LONG_PROCID, MS_IOCTL_CONTEXTIDR, NS_PRIVILEGE_LEVEL_1, 0, 32, "PROCID", "virtmem", "CONTEXTIDR", "PROCID" },
+    { BO_V8A_CONTEXTIDR_EL1_SHORT_ASID, MS_IOCTL_CONTEXTIDR, NS_PRIVILEGE_LEVEL_1, 0, 8, "ASID", "virtmem", "CONTEXTIDR", "ASID" },
+    { BO_V8A_CONTEXTIDR_EL1_SHORT_PROCID, MS_IOCTL_CONTEXTIDR, NS_PRIVILEGE_LEVEL_1, 8, 24, "PROCID", "virtmem", "CONTEXTIDR", "PROCID" }, 
+    
+    { BO_V8A_AMAIR_EL1_IMPLEMENTATION, MS_IOCTL_AMAIR, NS_PRIVILEGE_LEVEL_1, 0, 64, "Implementation Defined", "virtmem", "AMAIR", "Implementation Defined" },  
+    
+    { BO_V8A_DCZID_EL0_BS, MS_IOCTL_DCZID, NS_PRIVILEGE_LEVEL_0, 0, 4, "BS", "virtmem", "DCZID", "Block size" },
+    { BO_V8A_DCZID_EL0_DZP, MS_IOCTL_DCZID, NS_PRIVILEGE_LEVEL_0, 4, 1, "DZP", "virtmem", "DCZID", "Data Zero prohibited" },
+    { BO_V8A_DCZID_EL0_RESERVED, MS_IOCTL_DCZID, NS_PRIVILEGE_LEVEL_0, 5, 27, "Reserved", "virtmem", "DCZID", "Reserved" },
+    
+    { BO_V8A_TCR_T0SZ, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 0, 6, "T0SZ", "virtmem", "TCR", "Size offset of memory region addressed by TTBR0_EL1" },
+    { BO_V8A_TCR_RESERVED_01, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 6, 1, "Reserved", "virtmem", "TCR", "Reserved" },
+    { BO_V8A_TCR_EPD0, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 7, 1, "EPD0", "virtmem", "TCR", "Translation table walk disable for translations using TTBR0_EL1" },
+    { BO_V8A_TCR_IRGN0, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 8, 2, "IRGN0", "virtmem", "TCR", "Inner cacheability attribute" },
+    { BO_V8A_TCR_ORGN0, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 10, 2, "ORGN0", "virtmem", "TCR", "Outer cacheability attribute" },
+    { BO_V8A_TCR_SH0, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 12, 2, "SH0", "virtmem", "TCR", "Shareability attribute" },
+    { BO_V8A_TCR_TG0, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 14, 2, "TG0", "virtmem", "TCR", "Granule size for translation table base address register" },
+    { BO_V8A_TCR_T1SZ, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 16, 6, "T1SZ", "virtmem", "TCR", "Size offset of the memory region addressed by TTBR1_EL1" },
+    { BO_V8A_TCR_A1, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 22, 1, "A1", "virtmem", "TCR", "Selects whether TTBR0_EL1 or TTBR1_EL1 defines the ASID" },
+    { BO_V8A_TCR_EPD1, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 23, 1, "EPD1", "virtmem", "TCR", "Translation table walk disable for translations using TTBR1_EL1" },
+    { BO_V8A_TCR_IRGN1, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 24, 2, "IRGN1", "virtmem", "TCR", "Inner cacheability attribute for memory associated with translation table walks using TTBR1_EL1" },
+    { BO_V8A_TCR_ORGN1, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 26, 2, "ORGN1", "virtmem", "TCR", "Outer cacheability attribute for memory associated with translation table walks using TTBR1_EL1" },
+    { BO_V8A_TCR_SH1, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 28, 2, "SH1", "virtmem", "TCR", "Shareability attribute" },
+    { BO_V8A_TCR_TG1, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 30, 2, "TG1", "virtmem", "TCR", "TTBR1_EL1 Granule size" },
+    { BO_V8A_TCR_IPS, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 32, 3, "IPS", "virtmem", "TCR", "Intermediate Physical address size" },
+    { BO_V8A_TCR_RESERVED_02, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 35, 1, "Reserved", "virtmem", "TCR", "Reserved" },
+    { BO_V8A_TCR_AS, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 36, 1, "AS", "virtmem", "TCR", "ASID size" },
+    { BO_V8A_TCR_TBI0, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 37, 1, "TBI0", "virtmem", "TCR", "Top byte ignored for TTBR0_EL1" },
+    { BO_V8A_TCR_TBI1, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 38, 1, "TBI1", "virtmem", "TCR", "Top byte ignored for TTBR1_EL1" },
+    { BO_V8A_TCR_RESERVED_03, MS_IOCTL_TTBCR, NS_PRIVILEGE_LEVEL_1, 39, 25, "Reserved", "virtmem", "TCR", "Reserved" },
+        
+    { BO_V8A_TTBR0_BADDR, MS_IOCTL_TTBR1, NS_PRIVILEGE_LEVEL_1, 0, 48, "BADDR", "virtmem", "TTBR0", "Translation table base address" },        
+    { BO_V8A_TTBR0_ASID, MS_IOCTL_TTBR1, NS_PRIVILEGE_LEVEL_1, 48, 16, "ASID", "virtmem", "TTBR0", "ASID for translation table base address" },        
+    
+    { BO_V8A_TTBR1_BADDR, MS_IOCTL_TTBR0, NS_PRIVILEGE_LEVEL_1, 0, 48, "BADDR", "virtmem", "TTBR1", "Translation table base address" },        
+    { BO_V8A_TTBR1_ASID, MS_IOCTL_TTBR0, NS_PRIVILEGE_LEVEL_1, 48, 16, "ASID", "virtmem", "TTBR1", "ASID for translation table base address" },            
+                
+    /* Performance Monitor Bitfields */ 
+    { BO_V8A_PMCR_E, MS_IOCTL_PMCR, NS_ALL, 0, 1, "E", "perfmon", "PMCR", "All counters enable" },
+    { BO_V8A_PMCR_P, MS_IOCTL_PMCR, NS_ALL, 1, 1, "P", "perfmon", "PMCR", "Event counter reset" },
+    { BO_V8A_PMCR_C, MS_IOCTL_PMCR, NS_ALL, 2, 1, "C", "perfmon", "PMCR", "Cycle counter reset" },
+    { BO_V8A_PMCR_D, MS_IOCTL_PMCR, NS_ALL, 3, 1, "D", "perfmon", "PMCR", "Cycle counter clock divider" },
+    { BO_V8A_PMCR_X, MS_IOCTL_PMCR, NS_ALL, 4, 1, "X", "perfmon", "PMCR", "Export enable" },
+    { BO_V8A_PMCR_DP, MS_IOCTL_PMCR, NS_ALL, 5, 1, "DP", "perfmon", "PMCR", "Disable PMCCNTR when event counting is prohibited" },
+    { BO_V8A_PMCR_LC, MS_IOCTL_PMCR, NS_ALL, 6, 1, "LC", "perfmon", "PMCR", "Long cycle counter enable" },
+    { BO_V8A_PMCR_RESERVED, MS_IOCTL_PMCR, NS_ALL, 7, 4, "Rerverced", "perfmon", "PMCR", "Reserved" },
+    { BO_V8A_PMCR_N, MS_IOCTL_PMCR, NS_ALL, 11, 5, "N", "perfmon", "PMCR", "Number of event counters" },
+    { BO_V8A_PMCR_IDCODE, MS_IOCTL_PMCR, NS_ALL, 16, 8, "IDCODE", "perfmon", "PMCR", "Identification Code" },
+    { BO_V8A_PMCR_IMP, MS_IOCTL_PMCR, NS_ALL, 24, 8, "Implementation Defined", "perfmon", "PMCR", "Implementer Code" },
+    
+    { BO_V8A_PMCCFILTR_RESERVED, MS_IOCTL_PMCCFILTR, NS_ALL, 0, 26, "Reserved", "perfmon", "PMCCFILTR", "Reserved" },
+    { BO_V8A_PMCCFILTR_M, MS_IOCTL_PMCCFILTR, NS_ALL, 26, 1, "M", "perfmon", "PMCCFILTR", "Secure EL3 filtering bit" },
+    { BO_V8A_PMCCFILTR_NSH, MS_IOCTL_PMCCFILTR, NS_ALL, 27, 1, "NSH", "perfmon", "PMCCFILTR", "Non-secure Hyp modes filtering bit" },
+    { BO_V8A_PMCCFILTR_NSU, MS_IOCTL_PMCCFILTR, NS_ALL, 28, 1, "NSU", "perfmon", "PMCCFILTR", "Non-secure user mode filtering bit" },
+    { BO_V8A_PMCCFILTR_NSK, MS_IOCTL_PMCCFILTR, NS_ALL, 29, 1, "NSK", "perfmon", "PMCCFILTR", "Non-secure kernel (EL1) mode filtering bit" },
+    { BO_V8A_PMCCFILTR_U, MS_IOCTL_PMCCFILTR, NS_ALL, 30, 1, "NSK", "perfmon", "PMCCFILTR", "EL0 filtering bit" },
+    { BO_V8A_PMCCFILTR_P, MS_IOCTL_PMCCFILTR, NS_ALL, 31, 1, "P", "perfmon", "PMCCFILTR", "EL1 modes filtering bit" },
+    
+    { BO_V8A_PMCCNTR_CCNT, MS_IOCTL_PMCCNTR, NS_ALL, 0, 64, "CCNT", "perfmon", "PMCCNTR", "Cycle count" },
+
+    { BO_V8A_PMCEID0_ID, MS_IOCTL_PMCEID0, NS_ALL, 0, 32, "ID", "perfmon", "PMCEID0", "Common event implemented bit" },
+
+    { BO_V8A_PMCEID1_ID, MS_IOCTL_PMCEID1, NS_ALL, 0, 32, "ID", "perfmon", "PMCEID1", "Common event implemented bit" },
+
+    { BO_V8A_PMCNTENCLR_P, MS_IOCTL_PMCNTENCLR, NS_ALL, 0, 31, "P", "perfmon", "PMCNTENCLR", "Event counter disable bit" },
+    { BO_V8A_PMCNTENCLR_C, MS_IOCTL_PMCNTENCLR, NS_ALL, 31, 1, "C", "perfmon", "PMCNTENCLR", "PMCCNTR_EL0 disable bit" },  
+
+    { BO_V8A_PMCNTENSET_P, MS_IOCTL_PMCNTENSET, NS_ALL, 0, 31, "P", "perfmon", "PMCNTENSET", "Event counter enable bit" },
+    { BO_V8A_PMCNTENSET_C, MS_IOCTL_PMCNTENSET, NS_ALL, 31, 1, "C", "perfmon", "PMCNTENSET", "PMCCNTR_EL0 enable bit" },
+
+    { BO_V8A_PMINTENCLR_P, MS_IOCTL_PMINTENCLR, NS_PRIVILEGE_LEVEL_1, 0, 31, "P", "perfmon", "PMINTENCLR", "Event counter overflow interrupt request disable bit" },
+    { BO_V8A_PMINTENCLR_C, MS_IOCTL_PMINTENCLR, NS_PRIVILEGE_LEVEL_1, 31, 1, "C", "perfmon", "PMINTENCLR", "PMCCNTR_EL0 overflow interrupt disable bit" },
+
+    { BO_V8A_PMINTENSET_P, MS_IOCTL_PMINTENSET, NS_PRIVILEGE_LEVEL_1, 0, 31, "P", "perfmon", "PMINTENSET", "Event counter overflow interrupt request enable bit" },
+    { BO_V8A_PMINTENSET_C, MS_IOCTL_PMINTENSET, NS_PRIVILEGE_LEVEL_1, 31, 1, "C", "perfmon", "PMINTENSET", "PMCCNTR_EL0 overflow interrupt request enable bit" },
+    
+    { BO_V8A_PMOVSCLR_P, MS_IOCTL_PMOVSCLR, NS_ALL, 0, 31, "P", "perfmon", "PMOVSCLR", "Event counter overflow clear bit for PMEVCNTR" },
+    { BO_V8A_PMOVSCLR_C, MS_IOCTL_PMOVSCLR, NS_ALL, 31, 1, "C", "perfmon", "PMOVSCLR", "PMCCNTR_EL0 overflow bit" },
+
+    { BO_V8A_PMOVSSET_P, MS_IOCTL_PMOVSSET, NS_ALL, 0, 31, "P", "perfmon", "PMOVSSET", "Event counter overflow set bit for PMEVCNTR" },
+    { BO_V8A_PMOVSSET_C, MS_IOCTL_PMOVSSET, NS_ALL, 31, 1, "C", "perfmon", "PMOVSSET", "PMCCNTR_EL0 overflow bit" },
+
+    { BO_V8A_PMSELR_SEL, MS_IOCTL_PMSELR, NS_ALL, 0, 5, "SEL", "perfmon", "PMSELR", "Selects event counter PMEVCNTR" },
+    { BO_V8A_PMSELR_RESERVED, MS_IOCTL_PMSELR, NS_ALL, 5, 27, "Reserved", "perfmon", "PMSELR", "Reserved" },
+    
+    { BO_V8A_PMSWINC_P, MS_IOCTL_PMSWINC, NS_ALL, 0, 31, "P", "perfmon", "PMSWINC", "Event counter software interrupt for PMEVCNTR" },
+    { BO_V8A_PMSWINC_RESERVED, MS_IOCTL_PMSWINC, NS_ALL, 31, 1, "Reserved", "perfmon", "PMSWINC", "Reserved" },
+
+    { BO_V8A_PMUSERENR_EN, MS_IOCTL_PMUSERENR, NS_ALL, 0, 1, "EN", "perfmon", "PMUSERENR", "Traps EL0 accesses to the Performance Monitor registers to EL1" },
+    { BO_V8A_PMUSERENR_SW, MS_IOCTL_PMUSERENR, NS_ALL, 1, 1, "SW", "perfmon", "PMUSERENR", "Software increment write trap to EL1" },
+    { BO_V8A_PMUSERENR_CR, MS_IOCTL_PMUSERENR, NS_ALL, 2, 1, "CR", "perfmon", "PMUSERENR", "Cycle counter read trap to EL1" },
+    { BO_V8A_PMUSERENR_ER, MS_IOCTL_PMUSERENR, NS_ALL, 3, 1, "ER", "perfmon", "PMUSERENR", "Event counter read trap to EL1" },
+    { BO_V8A_PMUSERENR_RESERVED, MS_IOCTL_PMUSERENR, NS_ALL, 4, 28, "Reserved", "perfmon", "PMUSERENR", "Reserved" },
+
+    { BO_V8A_PMXEVCNTR_PMEVCNTR, MS_IOCTL_PMXEVCNTR, NS_ALL, 0, 32, "Value", "perfmon", "PMXEVCNTR", "Value of the selected event counter" },
+
+    { BO_V8A_PMXEVTYPER_ETR, MS_IOCTL_PMXEVTYPER, NS_ALL, 0, 32, "ETR", "perfmon", "PMXEVTYPER", "Event type register or PMCCFILTR_EL0" },
+    
+    /* "other" handling bitfields */
+    { BO_V8A_ACTLR_EL1_IMPLEMENTATION, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 0, 64, "Implementation Defined", "other", "ACTLR", "Implementation Defined" },
+    
+    { BO_V8A_CPACR_EL1_RESERVED_01, MS_IOCTL_CPACR, NS_PRIVILEGE_LEVEL_1, 0, 19, "Reserved", "other", "CPACR", "Reserved" },
+    { BO_V8A_CPACR_EL1_FPEN, MS_IOCTL_CPACR, NS_PRIVILEGE_LEVEL_1, 20, 2, "FPEN", "other", "CPACR", "Floating-point registers in EL0 and EL1 trapped to EL1" },
+    { BO_V8A_CPACR_EL1_RESERVED_02, MS_IOCTL_CPACR, NS_PRIVILEGE_LEVEL_1, 22, 6, "Reserved", "other", "CPACR", "Reserved" },
+    { BO_V8A_CPACR_EL1_TTA, MS_IOCTL_CPACR, NS_PRIVILEGE_LEVEL_1, 28, 1, "TTA", "other", "CPACR", "Trace registers in EL0 and EL1 trapped to EL1" },
+    { BO_V8A_CPACR_EL1_RESERVED_03, MS_IOCTL_CPACR, NS_PRIVILEGE_LEVEL_1, 29, 3, "Reserved", "other", "CPACR", "Reserved" },
+    
+    { BO_V8A_RMR_EL1_AA64, MS_IOCTL_RMR, NS_PRIVILEGE_LEVEL_1, 0, 1, "AA64", "other", "RMR", "Determines which state the PE boots into after a Warm reset" },
+    { BO_V8A_RMR_EL1_RR, MS_IOCTL_RMR, NS_PRIVILEGE_LEVEL_1, 1, 1, "RR", "other", "RMR", "Requests a Warm reset" },
+    { BO_V8A_RMR_EL1_RESERVED, MS_IOCTL_RMR, NS_PRIVILEGE_LEVEL_1, 2, 30, "Reserved", "other", "RMR", "Reserved" },
+    
+    { BO_V8A_RVBAR_EL1_RESETADDRESS, MS_IOCTL_RVBAR, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reset Address", "other", "RVBAR", "Address that execution starts at 64-bit reset" },
+        
+    /* Fault handling bitfields */      
+    { BO_V8A_FAR_EL1_VA, MS_IOCTL_FAR, NS_PRIVILEGE_LEVEL_1, 0, 64, "VA", "fault", "FAR", "VA of faulting address of synchronous Data Abort exception" },
+    
+    { BO_V8A_ESR_EL1_ISS, MS_IOCTL_DFSR, NS_PRIVILEGE_LEVEL_1, 0, 25, "ISS", "fault", "ESR", "Instruction specific syndrome" },
+    { BO_V8A_ESR_EL1_IL, MS_IOCTL_DFSR, NS_PRIVILEGE_LEVEL_1, 25, 1, "IL", "fault", "ESR", "Instruction length of synchronous exception" },
+    { BO_V8A_ESR_EL1_EC, MS_IOCTL_DFSR, NS_PRIVILEGE_LEVEL_1, 26, 6, "EC", "fault", "ESR", "Exception class" },
+    
+    { BO_V8A_AFSR0_EL1_IMPLEMENTATION , MS_IOCTL_ADFSR, NS_PRIVILEGE_LEVEL_1, 0, 32, "Implementation defined", "fault", "AFSR0", "Implementation defined" },
+    
+    { BO_V8A_AFSR1_EL1_IMPLEMENTATION , MS_IOCTL_AIFSR, NS_PRIVILEGE_LEVEL_1, 0, 32, "Implementation defined", "fault", "AFSR1", "Implementation defined" },
+
+    
+    /* Thumb */
+    { BO_V8A_TEECR_XED, MS_IOCTL_TEECR, NS_ALL, 0, 1, "XED", "thumb", "TEECR", "Unprivileged Execution Environment Disable" },
+    { BO_V8A_TEECR_RESERVED, MS_IOCTL_TEECR, NS_ALL, 1, 31, "Reserved", "thumb", "TEECR", "Reserved" },
+    
+    { BO_V8A_TEEHBR_RESERVED, MS_IOCTL_TEEHBR, NS_ALL, 0, 2, "Reserved", "thumb", "TEEHBR", "Reserved" },
+    { BO_V8A_TEEHBR_HANDLERBASE, MS_IOCTL_TEEHBR, NS_ALL, 2, 30, "HandlerBase", "thumb", "TEEHBR", "Address of ThumbEE handlers" },
+    
+    /* Misc */
+    { BO_V8A_TPIDRPRW_IMPLEMENTATION, MS_IOCTL_TPIDRPRW, NS_PRIVILEGE_LEVEL_1, 0, 64, "Thread ID", "misc", "TPIDR", "Thread ID Storage" },
+    
+    { BO_V8A_TPIDRURO_IMPLEMENTATION, MS_IOCTL_TPIDRURO, NS_PRIVILEGE_LEVEL_0, 0, 64, "Thread ID", "misc", "TPIDRRO", "Thread ID Storage" },
+    
+    { BO_V8A_TPIDRURW_IMPLEMENTATION, MS_IOCTL_TPIDRURW, NS_PRIVILEGE_LEVEL_0, 0, 64, "Thread ID", "misc", "TPIDR", "Thread ID Storage" }, 
+        
+    /* Address Translation */
+    { BO_V8A_PAR_F, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 0, 1, "F", "addrtrans", "PAR", "Conversion status" },
+    { BO_V8A_PAR_RESERVED_01, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 1, 6, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { BO_V8A_PAR_SH, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 7, 2, "SH", "addrtrans", "PAR", "Shareability attribute" },
+    { BO_V8A_PAR_NS, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 9, 1, "NS", "addrtrans", "PAR", "Non-secure" },
+    { BO_V8A_PAR_IMPLEMENTATION, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 10, 1, "Implementation Defined", "addrtrans", "PAR", "Implementation Defined" },
+    { BO_V8A_PAR_RESERVED_02, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 11, 1, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { BO_V8A_PAR_PA, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 12, 36, "PA", "addrtrans", "PAR", "Output Address" },
+    { BO_V8A_PAR_RESERVED_03, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 48, 8, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { BO_V8A_PAR_ATTR, MS_IOCTL_PAR, NS_PRIVILEGE_LEVEL_1, 56, 8, "ATTR", "addrtrans", "PAR", "Memory attributes" },
+        
+    /* Special-purpose registers */
+    
+    { BO_V8A_CURRENTEL_RESERVED_01, MS_IOCTL_SPSEL, NS_PRIVILEGE_LEVEL_1, 0, 2, "Reserved", "other", "CURRENTEL", "Reserved" },
+    { BO_V8A_CURRENTEL_EL, MS_IOCTL_SPSEL, NS_PRIVILEGE_LEVEL_1, 2, 2, "EL", "other", "CURRENTEL", "Current exception level" },
+    { BO_V8A_CURRENTEL_RESERVED_02, MS_IOCTL_SPSEL, NS_PRIVILEGE_LEVEL_1, 4, 28, "Reserved", "other", "CURRENTEL", "Reserved" },
+    
+    { BO_V8A_DAIF_RESERVED_01, MS_IOCTL_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 0, 6, "Reserved", "other", "DAIF", "Reserved" },
+    { BO_V8A_DAIF_F, MS_IOCTL_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 6, 1, "F", "other", "DAIF", "FIQ mask bit" },
+    { BO_V8A_DAIF_I, MS_IOCTL_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 7, 1, "I", "other", "DAIF", "IRQ mask bit" },
+    { BO_V8A_DAIF_A, MS_IOCTL_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 8, 1, "A", "other", "DAIF", "System Error mask bit" },
+    { BO_V8A_DAIF_D, MS_IOCTL_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 9, 1, "D", "other", "DAIF", "Process state D mask" },
+    { BO_V8A_DAIF_RESERVED_02, MS_IOCTL_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 10, 22, "Reserved", "other", "DAIF", "Reserved" },
+    
+    { BO_V8A_FPCR_RESERVED_01, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 0, 8, "Reserved", "other", "FPCR", "Reserved" },
+    { BO_V8A_FPCR_IOE, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 8, 1, "IOE", "other", "FPCR", "Invalid operation trap enable" },
+    { BO_V8A_FPCR_DZE, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 9, 1, "DZE", "other", "FPCR", "Division by zero exception trap enable" },
+    { BO_V8A_FPCR_OFE, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 10, 1, "OFE", "other", "FPCR", "Overflow exception trap enable" },
+    { BO_V8A_FPCR_UFE, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 11, 1, "UFE", "other", "FPCR", "Underflow exception trap enable" },
+    { BO_V8A_FPCR_IXE, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 12, 1, "IXE", "other", "FPCR", "Inexact exception trap enable" },
+    { BO_V8A_FPCR_RESERVED_02, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 13, 2, "Reserved", "other", "FPCR", "Reserved" },
+    { BO_V8A_FPCR_IDE, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 15, 1, "IDE", "other", "FPCR", "Input Denormal exception trap enable" },
+    { BO_V8A_FPCR_LEN, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 16, 3, "LEN", "other", "FPCR", "No aarch64 function" },
+    { BO_V8A_FPCR_RESERVED_03, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 19, 1, "Reserved", "other", "FPCR", "Reserved" },
+    { BO_V8A_FPCR_STRIDE, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 20, 2, "Stride", "other", "FPCR", "No aarch64 function" },
+    { BO_V8A_FPCR_RMMODE, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 22, 2, "RMode", "other", "FPCR", "Rounding Mode control field" },
+    { BO_V8A_FPCR_FZ, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 24, 1, "FZ", "other", "FPCR", "Flush-to-zero mode control bit" },
+    { BO_V8A_FPCR_DN, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 25, 1, "DN", "other", "FPCR", "Default NaN mode control bit" },
+    { BO_V8A_FPCR_AHP, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 26, 1, "AHP", "other", "FPCR", "Alternative half-precision control bit" },
+    { BO_V8A_FPCR_RESERVED_04, MS_IOCTL_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 27, 5, "Reserved", "other", "FPCR", "Reserved" },
+
+    { BO_V8A_FPSR_IOC, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 0, 1, "IOC", "other", "FPSR", "Invalid operation cumulative exception bit" },
+    { BO_V8A_FPSR_DZC, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 1, 1, "DZC", "other", "FPSR", "Division by zero cumulative exception bit" },
+    { BO_V8A_FPSR_OFC, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 2, 1, "OFC", "other", "FPSR", "Overflow cumulative exception bit" },
+    { BO_V8A_FPSR_UFC, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 3, 1, "UFC", "other", "FPSR", "Underflow cumulative exception bit" },
+    { BO_V8A_FPSR_IXC, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 4, 1, "IXV", "other", "FPSR", "Inexact cumulative exception bit" },
+    { BO_V8A_FPSR_RESERVED_01, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 5, 2, "Reserved", "other", "FPSR", "Reserved" },
+    { BO_V8A_FPSR_IDC, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 7, 1, "IDC", "other", "FPSR", "Input Denormal cumulative exception bit" },
+    { BO_V8A_FPSR_RESERVED_02, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 8, 19, "Reserved", "other", "FPSR", "Reserved" },
+    { BO_V8A_FPSR_QC, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 27, 1, "QC", "other", "FPSR", "Cumulative saturation bit" },
+    { BO_V8A_FPSR_V, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 28, 1, "V", "other", "FPSR", "Overflow condition flag for aarch32 fp" },
+    { BO_V8A_FPSR_C, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 29, 1, "C", "other", "FPSR", "Carry condition flag for aarch32 fp" },
+    { BO_V8A_FPSR_Z, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 30, 1, "Z", "other", "FPSR", "Zero condition flag for aarch32 fp" },
+    { BO_V8A_FPSR_N, MS_IOCTL_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 31, 1, "N", "other", "FPSR", "Negative condition flag for aarch32 fp" },  
+
+    { BO_V8A_NZCV_RESERVED_01, MS_IOCTL_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 0, 28, "Reserved", "other", "NZCV", "Reserved" },
+    { BO_V8A_NZCV_V, MS_IOCTL_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 28, 1, "V", "other", "NZCV", "Overflow condition flag" },
+    { BO_V8A_NZCV_C, MS_IOCTL_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 29, 1, "C", "other", "NZCV", "Carry condition flag" },
+    { BO_V8A_NZCV_Z, MS_IOCTL_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 30, 1, "Z", "other", "NZCV", "Zero condition flag" },
+    { BO_V8A_NZCV_N, MS_IOCTL_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 31, 1, "N", "other", "NZCV", "Negative condition flag" }, 
+    
+    { BO_V8A_SPSEL_SP, MS_IOCTL_SPSEL, NS_PRIVILEGE_LEVEL_1, 0, 1, "SP", "other", "SPSEL", "Stack pointer to use" },
+    { BO_V8A_SPSEL_RESERVED, MS_IOCTL_SPSEL, NS_PRIVILEGE_LEVEL_1, 1, 31, "Reserved", "other", "SPSEL", "Reserved" },
+
+};
+
+int
+return_bitfield_armv8a_size(void)
+{
+    return (sizeof(bitfield_armv8a_table) / sizeof(bitfield_info));
+}

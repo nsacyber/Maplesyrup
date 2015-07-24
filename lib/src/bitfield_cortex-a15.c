@@ -1,0 +1,163 @@
+#include <stdio.h>
+#include <sys/ioctl.h>
+
+#include "maplesyrup.h"
+#include "parse.h"
+#include "bitfield_cortex-a15.h"
+
+bitfield_info bitfield_cortex_a15_table[] =
+{       
+    { BO_A15_REVIDR_ID, MS_IOCTL_REVIDR, NS_PRIVILEGE_LEVEL_1, 0, 32, "ID Number", "ident", "REVIDR", "Revision information" },
+    
+    { BO_A15_MPIDR_CPUID, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 0, 2, "CPU ID", "ident", "MPIDR", "Processor number" },
+    { BO_A15_MPIDR_RESERVED_01, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 2, 6, "Reserved", "ident", "MPIDR", "Reserved" },
+    { BO_A15_MPIDR_CLUSTERID, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 8, 4, "Cluster ID", "ident", "MPIDR", "Cluster ID" },
+    { BO_A15_MPIDR_RESERVED_02, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 12, 12, "Reserved", "ident", "MPIDR", "Reserved" },
+    { BO_A15_MPIDR_MT, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 24, 1, "MT", "ident", "MPIDR", "Multi-threaded" },
+    { BO_A15_MPIDR_RESERVED_03, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 25, 5, "Reserved", "ident", "MPIDR", "Reserved" },
+    { BO_A15_MPIDR_U, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 30, 1, "U", "ident", "MPIDR", "Uniprocessor system" },
+    { BO_A15_MPIDR_ME, MS_IOCTL_MPIDR, NS_PRIVILEGE_LEVEL_1, 31, 1, "ME", "ident", "MPIDR", "Multiprocessor Extensions" }, 
+    
+    { BO_A15_ACTLR_BTB, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 0, 1, "BTB", "other", "ACTLR", "Enables invalidate of BTB" },
+    { BO_A15_ACTLR_DLB, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 1, 1, "DLB", "other", "ACTLR", "Disable loop buffer" },
+    { BO_A15_ACTLR_DLBF, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 2, 1, "DLBF", "other", "ACTLR", "Limit to one loop buffer detect per flush" },
+    { BO_A15_ACTLR_DMBTB, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 3, 1, "DMBTB", "other", "ACTLR", "Disables micro-Branch Target Buffer" },
+    { BO_A15_ACTLR_DIP, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 4, 1, "DIP", "other", "ACTLR", "Disable interrupt predictor" },
+    { BO_A15_ACTLR_EPLDNOP, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 5, 1, "EPLDNOP", "other", "ACTLR", "Execute PLD instruction as a NOP" },
+    { BO_A15_ACTLR_SMP, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 6, 1, "SMP", "other", "ACTLR", "Enables SMP" },
+    { BO_A15_ACTLR_EWFENOP, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 7, 1, "EWFENOP", "other", "ACTLR", "Executes WFE instruction as a NOP instruction" },
+    { BO_A15_ACTLR_EWFINOP, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 8, 1, "EWFINOP", "other", "ACTLR", "Executes WFI instruction as a NOP instruction" },
+    { BO_A15_ACTLR_DFRO, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 9, 1, "DFRO", "other", "ACTLR", "Disable flag renaming optimization" },
+    { BO_A15_ACTLR_FS, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 10, 1, "FS", "other", "ACTLR", "Force serialization after each instruction group" },
+    { BO_A15_ACTLR_L1PIG, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 11, 1, "L1PIG", "other", "ACTLR", "Limit to one instruction per instruction group" },
+    { BO_A15_ACTLR_FPCP, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 12, 1, "FPCP", "other", "ACTLR", "Force push of CP14 and CP15 registers" },
+    { BO_A15_ACTLR_FLCP, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 13, 1, "FLCP", "other", "ACTLR", "Flush after CP14 and CP15 writes" },
+    { BO_A15_ACTLR_FL, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 14, 1, "FL", "other", "ACTLR", "Force limit of one instruction group commit/deallocate per cycle" },
+    { BO_A15_ACTLR_FIOBEU, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 15, 1, "FIOBEU", "other", "ACTLR", "Force in-order issue in branch execution unit" },
+    { BO_A15_ACTLR_EFSO, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 16, 1, "EFSO", "other", "ACTLR", "Enable full strongly-ordered and device load replay" },
+    { BO_A15_ACTLR_DL2_01, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 17, 1, "DL2_01", "other", "ACTLR", "Disables L2 TLB performance optimizations" }, 
+    { BO_A15_ACTLR_DL2_02, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 18, 1, "DL2_02", "other", "ACTLR", "Disables L2 stage 1 translation table walk L2 PA cache" },
+    { BO_A15_ACTLR_DL2_03, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 19, 1, "DL2_03", "other", "ACTLR", "Disable L2 stage 1 translation table walk cache" },
+    { BO_A15_ACTLR_DL2_04, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 20, 1, "DL2_04", "other", "ACTLR", "Disable L2 translation table walk IPA PA cache" },
+    { BO_A15_ACTLR_DL2_05, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 21, 1, "DL2_05", "other", "ACTLR", "Disable L2 TLB prefetching" },
+    { BO_A15_ACTLR_FIOL, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 22, 1, "FIOL", "other", "ACTLR", "Force in-order load issue" }, 
+    { BO_A15_ACTLR_FIOR, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 23, 1, "FIOR", "other", "ACTLR", "Force in-order requests to the same set and way" },
+    { BO_A15_ACTLR_NCSE, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 24, 1, "NCSE", "other", "ACTLR", "Non-cacheable streaming enhancement" },
+    { BO_A15_ACTLR_WSL1T, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 25, 2, "WSL1T", "other", "ACTLR", "Write streaming no L1-allocate threshold" },
+    { BO_A15_ACTLR_WSNAT, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 27, 2, "WSNAT", "other", "ACTLR", "Write streaming no allocate threshold" },
+    { BO_A15_ACTLR_FNCEA, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 29, 1, "FNCEA", "other", "ACTLR", "Force NEON/VFP clock enable active" },
+    { BO_A15_ACTLR_FMCEA, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 30, 1, "FMCEA", "other", "ACTLR", "Force main clock enable active" },
+    { BO_A15_ACTLR_SDEH, MS_IOCTL_ACTLR, NS_PRIVILEGE_LEVEL_1, 31, 1, "SDEH", "other", "ACTLR", "Snoop-delayed exclusive handling" },  
+    
+    { BO_A15_NSACR_RESERVED_01, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 0, 10, "Reserved", "secext", "NSACR", "Reserved" },
+    { BO_A15_NSACR_CP10, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 10, 1, "CP10", "secext", "NSACR", "Non-secure access to coprocessor 10 enable" },
+    { BO_A15_NSACR_CP11, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 11, 1, "CP11", "secext", "NSACR", "Non-secure access to coprecessor 11 enable" },
+    { BO_A15_NSACR_RESERVED_02, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 12, 3, "Reserved", "secext", "NSACR", "Reserved" },
+    { BO_A15_NSACR_NSASEDIS, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 15, 1, "NSASEDIS", "secext", "NSACR", "Disable non-secure Advanced SIMD functionality" },
+    { BO_A15_NSACR_RESERVED_03, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 16, 1, "Reserved", "secext", "NSACR", "Reserved" },
+    { BO_A15_NSACR_NSL2ERR, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 17, 1, "NS_L2ERR", "secext", "NSACR", "Allow write to L2 AXI Async Error bit in L2ECTLR in non-secure state" },
+    { BO_A15_NSACR_NSSMP, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 18, 1, "NS_SMP", "secext", "NSACR", "Allow write to SMP bit in ACTLR in non-secure state" },
+    { BO_A15_NSACR_RESERVED_04, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 19, 1, "Reserved", "secext", "NSACR", "Reserved" },
+    { BO_A15_NSACR_RESERVED_05, MS_IOCTL_NSACR, NS_PRIVILEGE_LEVEL_1, 20, 12, "Reserved", "secext", "NSACR", "Reserved" },
+    
+    { BO_A15_ADFSR_INDEX, MS_IOCTL_ADFSR, NS_PRIVILEGE_LEVEL_1, 0, 18, "Index", "fault", "ADFSR", "Index in RAM of the L1 ECC double-bit error" },
+    { BO_A15_ADFSR_BANKWAY, MS_IOCTL_ADFSR, NS_PRIVILEGE_LEVEL_1, 18, 5, "BankWay", "fault", "ADFSR", "Bank or way of RAM the L1 ECC double-bit error occurred" },
+    { BO_A15_ADFSR_L2ERROR, MS_IOCTL_ADFSR, NS_PRIVILEGE_LEVEL_1, 23, 1, "L2Error", "fault", "ADFSR", "Indicates an L2 ECC double-bit error occurred" },
+    { BO_A15_ADFSR_RAMID, MS_IOCTL_ADFSR, NS_PRIVILEGE_LEVEL_1, 24, 7, "RAMID", "fault", "ADFSR", "Indicates which RAM the L1 ECC double-bit error occurred in" },
+    { BO_A15_ADFSR_VALID, MS_IOCTL_ADFSR, NS_PRIVILEGE_LEVEL_1, 31, 1, "Valid", "fault", "ADFSR", "Indicates that an L1 or L2 double-bit error has occurred" },    
+    
+    { BO_A15_L2CTLR_LATENCY, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 0, 3, "Data RAM latency", "impl_def", "L2CTLR", "L2 data RAM latency" },
+    { BO_A15_L2CTLR_RESERVED_01, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 3, 2, "Reserved", "impl_def", "L2CTLR", "Reserved" },
+    { BO_A15_L2CTLR_DATASETUP, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 5, 1, "Data RAM setup", "impl_def", "L2CTLR", "L2 data RAM setup" },
+    { BO_A15_L2CTLR_TAGLATENCY, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 6, 3, "Tag RAM latency", "impl_def", "L2CTLR", "Tag RAM latency" },
+    { BO_A15_L2CTLR_TAGSETUP, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 9, 1, "Tag RAM setup", "impl_def", "L2CTLR", "L2 tag RAM setup" },
+    { BO_A15_L2CTLR_DATASLICE, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 10, 2, "Data RAM slice", "impl_def", "L2CTLR", "L2 data RAM slice" },
+    { BO_A15_L2CTLR_TAGSLICE, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 12, 1, "Tag RAM slice", "impl_def", "L2CTLR", "L2 tag RAM slice" },
+    { BO_A15_L2CTLR_RESERVED_02, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 13, 8, "Reserved", "impl_def", "L2CTLR", "Reserved" },
+    { BO_A15_L2CTLR_ECCPARITY, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 21, 1, "ECC and parity enable", "impl_def", "L2CTLR", "ECC and parity enable in L1 and L2 caches" },
+    { BO_A15_L2CTLR_RESERVED_03, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 22, 1, "Reserved", "impl_def", "L2CTLR", "Reserved" },
+    { BO_A15_L2CTLR_INTERRUPT, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 23, 1, "Interrupt Controller", "impl_def", "L2CTLR", "Interrupt Controller present" },
+    { BO_A15_L2CTLR_NUMPROC, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 24, 2, "Number of processors", "impl_def", "L2CTLR", "Number of processors present" },
+    { BO_A15_L2CTLR_RESERVED_04, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 26, 5, "Reserved", "impl_def", "L2CTLR", "Reserved" },
+    { BO_A15_L2CTLR_L2RSTDISABLE, MS_IOCTL_L2CTLR, NS_PRIVILEGE_LEVEL_1, 31, 1, "L2RSTDISABLE", "impl_def", "L2CTLR", "Monitors the L2 hardware reset disable pin" },  
+    
+    
+    { BO_A15_IL1DATA0_DATA, MS_IOCTL_IL1DATA0, NS_PRIVILEGE_LEVEL_1, 0, 32, "Data", "impl_def", "IL1DATA0", "Holds the instruction side L1 array information" },   
+    { BO_A15_IL1DATA1_DATA, MS_IOCTL_IL1DATA1, NS_PRIVILEGE_LEVEL_1, 0, 32, "Data", "impl_def", "IL1DATA1", "Holds the instruction side L1 array information" },   
+    { BO_A15_IL1DATA2_DATA, MS_IOCTL_IL1DATA2, NS_PRIVILEGE_LEVEL_1, 0, 32, "Data", "impl_def", "IL1DATA2", "Holds the instruction side L1 array information" },   
+    { BO_A15_IL1DATA3_DATA, MS_IOCTL_IL1DATA3, NS_PRIVILEGE_LEVEL_1, 0, 32, "Data", "impl_def", "IL1DATA3", "Holds the instruction side L1 array information" },   
+    
+    { BO_A15_DL1DATA0_DATA, MS_IOCTL_DL1DATA0, NS_PRIVILEGE_LEVEL_1, 0, 32, "Data", "impl_def", "DL1DATA0", "Holds the data side L1 or L2 array information" },    
+    { BO_A15_DL1DATA1_DATA, MS_IOCTL_DL1DATA1, NS_PRIVILEGE_LEVEL_1, 0, 32, "Data", "impl_def", "DL1DATA1", "Holds the data side L1 or L2 array information" },    
+    { BO_A15_DL1DATA2_DATA, MS_IOCTL_DL1DATA2, NS_PRIVILEGE_LEVEL_1, 0, 32, "Data", "impl_def", "DL1DATA2", "Holds the data side L1 or L2 array information" },    
+    { BO_A15_DL1DATA3_DATA, MS_IOCTL_DL1DATA3, NS_PRIVILEGE_LEVEL_1, 0, 32, "Data", "impl_def", "DL1DATA3", "Holds the data side L1 or L2 array information" },    
+    
+    { BO_A15_L2ACTLR_DPF, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 0, 1, "DPF", "impl_def", "L2ACTLR", "Disable prefetch fowarding" },  
+    { BO_A15_L2ACTLR_ARTT, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 1, 1, "ARTT", "impl_def", "L2ACTLR", "Enable arbitration replay threshold timeout" },   
+    { BO_A15_L2ACTLR_LTB, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 2, 1, "LTB", "impl_def", "L2ACTLR", "Limit to one request per tag bank" },   
+    { BO_A15_L2ACTLR_DCEPTE, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 3, 1, "DCEPTE", "impl_def", "L2ACTLR", "Disable clean/evict push to external" },  
+    { BO_A15_L2ACTLR_DWU, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 4, 1, "DWU", "impl_def", "L2ACTLR", "Disable WriteUnique and WriteLineUnique transactions from master" },    
+    { BO_A15_L2ACTLR_RESERVED_01, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 5, 1, "Reserved", "impl_def", "L2ACTLR", "Reserved" },   
+    { BO_A15_L2ACTLR_DST, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 6, 1, "DST", "impl_def", "L2ACTLR", "Disable shareable transactions from master" },  
+    { BO_A15_L2ACTLR_EHDT, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 7, 1, "EHDT", "impl_def", "L2ACTLR", "Enable hazard detect timeout" },  
+    { BO_A15_L2ACTLR_DDVM, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 8, 1, "DDVM", "impl_def", "L2ACTLR", "Disable DVM/CMO message broadcast" }, 
+    { BO_A15_L2ACTLR_RESERVED_02, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 9, 1, "Reserved", "impl_def", "L2ACTLR", "Reserved" },   
+    { BO_A15_L2ACTLR_DNSDAR, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 10, 1, "DNSDAR", "impl_def", "L2ACTLR", "Disable Non-secure debug array read" },  
+    { BO_A15_L2ACTLR_DDSB, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 11, 1, "DDSB", "impl_def", "L2ACTLR", "Disable DSB with no DVM synchronization" },  
+    { BO_A15_L2ACTLR_DMOWC, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 12, 1, "DMOWC", "impl_def", "L2ACTLR", "Disable multiple outstanding WriteClean/WriteBack/Evicts using the same AWID" },   
+    { BO_A15_L2ACTLR_DSCDT, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 13, 1, "DSCDT", "impl_def", "L2ACTLR", "Disable SharedClean data transfers" }, 
+    { BO_A15_L2ACTLR_EUCEWD, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 14, 1, "EUCEWD", "impl_def", "L2ACTLR", "Enable UniqueClean evictions with data" },   
+    { BO_A15_L2ACTLR_ECPUWFI, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 15, 1, "ECPUWFI", "impl_def", "L2ACTLR", "Enable CPU WFI retention mode" },  
+    { BO_A15_L2ACTLR_ERTSICT, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 16, 1, "ERTSICT", "impl_def", "L2ACTLR", "Enable replay threshold single issue - current tag bank" },    
+    { BO_A15_L2ACTLR_RESERVED_03, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 17, 8, "Reserved", "impl_def", "L2ACTLR", "Reserved" },  
+    { BO_A15_L2ACTLR_ERTSIAT, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 25, 1, "ERTSIAT", "impl_def", "L2ACTLR", "Enable replay threshold single issue - all tag banks" },   
+    { BO_A15_L2ACTLR_ERCG, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 26, 1, "ERCG", "impl_def", "L2ACTLR", "Enable L2, GIC, and Timer regional clock gates" },   
+    { BO_A15_L2ACTLR_FL2CEA, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 27, 1, "FL2CEA", "impl_def", "L2ACTLR", "Force L2 logic clock enable active" },   
+    { BO_A15_L2ACTLR_FL2TBCLE, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 28, 1, "FL2TBCLE", "impl_def", "L2ACTLR", "Force L2 tag bank clock enable active" },    
+    { BO_A15_L2ACTLR_RESERVED_04, MS_IOCTL_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 29, 3, "Reserved", "impl_def", "L2ACTLR", "Reserved" },      
+    
+    { BO_A15_L2PFR_RESERVED_01, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "impl_def", "L2PFR", "Reserved" },     
+    { BO_A15_L2PFR_L2LSDPD, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 4, 2, "L2LSDPD", "impl_def", "L2PFR", "L2 load/store data prefetch distance" },      
+    { BO_A15_L2PFR_RESERVED_02, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 6, 1, "Reserved", "impl_def", "L2PFR", "Reserved" },     
+    { BO_A15_L2PFR_L2IFPD, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 7, 2, "L2IFPD", "impl_def", "L2PFR", "L2 instruction fetch prefetch distance" },      
+    { BO_A15_L2PFR_RESERVED_03, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 9, 1, "Reserved", "impl_def", "L2PFR", "Reserved" },     
+    { BO_A15_L2PFR_DTWDAP, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 10, 1, "DTWDAP", "impl_def", "L2PFR", "Disable table walk descriptor across prefetch" },      
+    { BO_A15_L2PFR_EPRFRT, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 11, 1, "EPRFRT", "impl_def", "L2PFR", "Enable prefetch requests from ReadUnique transactions" },      
+    { BO_A15_L2PFR_DDTOLSPR, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 12, 1, "DDTOLSPR", "impl_def", "L2PFR", "Disable dynamic throttling of load/store prefetch requests" },     
+    { BO_A15_L2PFR_RESERVED_04, MS_IOCTL_L2PFR, NS_PRIVILEGE_LEVEL_1, 13, 19, "Reserved", "impl_def", "L2PFR", "Reserved" },       
+    
+    { BO_A15_ACTLR2_EDCCADC, MS_IOCTL_ACTLR2, NS_PRIVILEGE_LEVEL_1, 0, 1, "EDCCADC", "impl_def", "ACTLR2", "Execute data cache clean as data cache clean/invalidate" },        
+    { BO_A15_ACTLR2_RESERVED, MS_IOCTL_ACTLR2, NS_PRIVILEGE_LEVEL_1, 1, 30, "Reserved", "impl_def", "ACTLR2", "Reserved" },        
+    { BO_A15_ACTLR2_ECPURCG, MS_IOCTL_ACTLR2, NS_PRIVILEGE_LEVEL_1, 31, 1, "ECPURCG", "impl_def", "ACTLR2", "Enable CPU regional clock gates" },           
+    
+    { BO_A15_CBAR_PERIPHBASE_39_32, MS_IOCTL_CBAR, NS_PRIVILEGE_LEVEL_1, 0, 8, "PERIPHBASE_39_32", "impl_def", "CBAR", "Determines reset value" },
+    { BO_A15_CBAR_RESERVED, MS_IOCTL_CBAR, NS_PRIVILEGE_LEVEL_1, 8, 7, "Reserved", "impl_def", "CBAR", "Reserved" },
+    { BO_A15_CBAR_PERIPHBASE_31_15, MS_IOCTL_CBAR, NS_PRIVILEGE_LEVEL_1, 15, 16, "PERIPHBASE_31_15", "impl_def", "CBAR", "Determines reset value" },
+        
+    { BO_A15_CPUMERRSR_INDEX, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 0, 18, "Index", "impl_def", "CPUMERRSR", "Index address of first memory error" },
+    { BO_A15_CPUMERRSR_BANKWAY, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 18, 5, "BankWay", "impl_def", "CPUMERRSR", "Bank or way of the RAM where the first memory error occurred" },
+    { BO_A15_CPUMERRSR_RESERVED_01, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 23, 1, "Reserved", "impl_def", "CPUMERRSR", "Reserved" },
+    { BO_A15_CPUMERRSR_RAMID, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 24, 7, "RAMID", "impl_def", "CPUMERRSR", "Indicates the RAM of the first memory error" },
+    { BO_A15_CPUMERRSR_VALID, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 31, 1, "Valid", "impl_def", "CPUMERRSR", "Set on first memory error" },
+    { BO_A15_CPUMERRSR_REPEATERROR, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 32, 38, "REPEATERROR", "impl_def", "CPUMERRSR", "Repeat error count" },
+    { BO_A15_CPUMERRSR_OTHERERROR, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 40, 8, "OTHERERROR", "impl_def", "CPUMERRSR", "Other error count" },
+    { BO_A15_CPUMERRSR_RESERVED_02, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 48, 14, "Reserved", "impl_def", "CPUMERRSR", "Reserved" },
+    { BO_A15_CPUMERRSR_FATAL, MS_IOCTL_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 63, 1, "Fatal", "impl_def", "CPUMERRSR", "Fatal bit" },
+    
+    { BO_A15_L2MERRSR_INDEX, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 0, 18, "Index", "impl_def", "L2MERRSR", "Index address of first memory error" },
+    { BO_A15_L2MERRSR_CPUIDWAY, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 18, 5, "CPUIDWay", "impl_def", "L2MERRSR", "Processor and way of the RAM where the first memory error occurred" },
+    { BO_A15_L2MERRSR_RESERVED_01, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 23, 1, "Reserved", "impl_def", "L2MERRSR", "Reserved" },
+    { BO_A15_L2MERRSR_RAMID, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 24, 7, "RAMID", "impl_def", "L2MERRSR", "Indicates the RAM of the first memory error" },
+    { BO_A15_L2MERRSR_VALID, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 31, 1, "Valid", "impl_def", "L2MERRSR", "Set on first memory error" },
+    { BO_A15_L2MERRSR_REPEATERROR, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 32, 38, "REPEATERROR", "impl_def", "L2MERRSR", "Repeat error count" },
+    { BO_A15_L2MERRSR_OTHERERROR, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 40, 8, "OTHERERROR", "impl_def", "L2MERRSR", "Other error count" },
+    { BO_A15_L2MERRSR_RESERVED_02, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 48, 14, "Reserved", "impl_def", "L2MERRSR", "Reserved" },
+    { BO_A15_L2MERRSR_FATAL, MS_IOCTL_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 63, 1, "Fatal", "impl_def", "L2MERRSR", "Fatal bit" },
+    
+};
+
+int
+return_bitfield_cortex_a15_size(void)
+{
+    return (sizeof(bitfield_cortex_a15_table) / sizeof(bitfield_info));
+}
