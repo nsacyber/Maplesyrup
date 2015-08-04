@@ -179,7 +179,7 @@ done:
 
 static
 void
-set_status_flag(co15_result * out)
+set_status_flag(ms_data * out)
 {
     if (out == NULL)
     {
@@ -206,7 +206,7 @@ static
 int
 call_func_ptr(
     unsigned int func_index,
-    co15_result * result_out)
+    ms_data * result_out)
 {   
     int result = -1;    
         
@@ -328,7 +328,7 @@ done:
 int
 usermode_results(
     unsigned int cmd,
-    co15_result * result_out)
+    ms_data * result_out)
 {
     int result = -1;
     unsigned int index_out = -1;

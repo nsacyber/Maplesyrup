@@ -203,6 +203,11 @@ ms_get_groups(
     }
     ms_list_init(&list);
     
+    if (read_tables_to_memory() != 0)
+    {
+        TRACE("Failed to expand table to memory\n", 0);
+    }
+    
     if (get_groups(&list) != 0)
     {
         TRACE("Failed to get_groups\n", 0);
@@ -218,6 +223,7 @@ ms_get_groups(
     result = 0;
 done:
     ms_list_free(&list);
+    erase_tables();
     return result;
 }
 
@@ -235,6 +241,11 @@ ms_get_registers(
     }
     ms_list_init(&list);        
     
+    if (read_tables_to_memory() != 0)
+    {
+        TRACE("Failed to expand table to memory\n", 0);
+    }
+    
     if (get_registers(&list) != 0)
     {
         TRACE("Failed to get_groups\n", 0);
@@ -250,6 +261,7 @@ ms_get_registers(
     result = 0;
 done:
     ms_list_free(&list);
+    erase_tables();
     return result;
 }
 
@@ -266,6 +278,11 @@ ms_get_bitfields(
     }
     ms_list_init(&list);    
     
+    if (read_tables_to_memory() != 0)
+    {
+        TRACE("Failed to expand table to memory\n", 0);
+    }
+    
     if (get_bitfields(&list) != 0)
     {
         TRACE("Failed to get_groups\n", 0);
@@ -281,6 +298,7 @@ ms_get_bitfields(
     result = 0;
 done:
     ms_list_free(&list);
+    erase_tables();
     return result;
 }
 
@@ -319,6 +337,11 @@ ms_find_by_bitfield(
     }
     match.bitfield_code = bitfield;     
     
+    if (read_tables_to_memory() != 0)
+    {
+        TRACE("Failed to expand table to memory\n", 0);
+    }
+    
     if (find_bitfields(&match, &list) != 0)
     {
         TRACE("Failed to find_bitfields\n", 0);
@@ -330,11 +353,13 @@ ms_find_by_bitfield(
         TRACE("Failed to flatten_results\n", 0);
         goto done;
     }
+    
         
     result = 0;
 done:
-    stop_test();
+    stop_test();    
     ms_list_free(&list);
+    erase_tables();
     return result;
 }
 
@@ -378,6 +403,11 @@ ms_find_by_register(
     }
     strncpy(match.register_name, regname, PARSE_MAX_REGISTER - 1);                  
     
+    if (read_tables_to_memory() != 0)
+    {
+        TRACE("Failed to expand table to memory\n", 0);
+    }
+    
     if (find_bitfields(&match, &list) != 0)
     {
         TRACE("Failed to find_bitfields\n", 0);
@@ -389,14 +419,16 @@ ms_find_by_register(
         TRACE("Failed to flatten_results\n", 0);
         goto done;
     }
+    
         
     result = 0;
 done:
     if (calc_value == NULL)
     {
         stop_test();
-    }
+    }    
     ms_list_free(&list);
+    erase_tables();
     return result;
 }
 
@@ -433,6 +465,11 @@ ms_find_by_group(
     }
     strncpy(match.functional_group, groupname, PARSE_MAX_FUNCTIONAL - 1);               
     
+    if (read_tables_to_memory() != 0)
+    {
+        TRACE("Failed to expand table to memory\n", 0);
+    }
+    
     if (find_bitfields(&match, &list) != 0)
     {
         TRACE("Failed to find_bitfields\n", 0);
@@ -444,12 +481,13 @@ ms_find_by_group(
         TRACE("Failed to flatten_results\n", 0);
         goto done;
     }
+    
         
     result = 0;
-done:
-
+done:    
     stop_test();
     ms_list_free(&list);
+    erase_tables();
     return result;
 }
 

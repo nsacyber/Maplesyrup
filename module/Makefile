@@ -1,5 +1,10 @@
 obj-m := maplesyrup_mod.o
-maplesyrup_mod-objs += 	entrypoint.o cmd_handler.o kernel_return.o \
+maplesyrup_mod-objs += 	entrypoint.o \
+					cmd_handler.o \
+					kernel_return.o \
+					device_tree.o \
+					undef_hook.o \
+					gic.o \
 					../common/ms_debug.o \
 					../common/jumptable.o \
 					../common/aarch64.o \
@@ -19,7 +24,7 @@ maplesyrup_mod-objs += 	entrypoint.o cmd_handler.o kernel_return.o \
 					../common/impl_def.o \
 					../common/psr.o
 
-EXTRA_CFLAGS = -I$(src)/../lib/include/ -I$(src)/../common/
+EXTRA_CFLAGS = -I$(src)/../lib/include/ -I$(src)/../common/ -fno-pic
 #KERNEL_SRC = /path/to/kernel/source
 
 all:

@@ -1,27 +1,21 @@
 #include <linux/module.h>
 #include <linux/uaccess.h>
-#include <linux/ioctl.h>
 #include <linux/smp.h>
 #include <linux/cpu.h>
-#include <linux/string.h>
-#include <linux/kallsyms.h>
 #include <linux/spinlock.h>
-#include <linux/list.h>
-
-#include <asm/io.h>
-#include <asm/traps.h>
 
 #include "cmd_handler.h"
 #include "parse.h"
+#include "undef_hook.h"
 
 #include "ms_debug.h"
 #include "ms_error.h"
 
-static unsigned int g_undef_flag;
-static spinlock_t g_undef_flag_lock;
+extern unsigned int g_undef_flag;
+extern spinlock_t g_undef_flag_lock;
+
 //#pragma GCC diagnostic ignored "-Wunused-function"
 //#pragma GCC diagnostic ignored "-Wunused-variable"
-
 
 /******************************************************
  * Copy user mode structure to kernel mode structure
@@ -32,10 +26,9 @@ static spinlock_t g_undef_flag_lock;
  * @return 0 on success, -1 on error
  * 
  * ***************************************************/
-static
 int
 unpack_result_wrapper(
-    co15_result_cpu * userin,
+    ms_data_cpu * userin,
     co15_result_cpu_wrapper * kernelout)
 {
     unsigned int i = 0;
@@ -60,7 +53,8 @@ unpack_result_wrapper(
          kernelout->results.cpu[i].status  = userin->cpu[i].status;
      }
      kernelout->pcpu = userin->pcpu;
-             
+     kernelout->results.code = userin->code;
+       
     result = 0;
 done:
     return result;
@@ -76,11 +70,10 @@ done:
  * @return 0 on success, -1 on error
  * 
  * ***************************************************/
-static
 int
 repack_result_wrapper(
     co15_result_cpu_wrapper * kernelin,
-    co15_result_cpu * userout)
+    ms_data_cpu * userout)
 {
     int result = -1;
     unsigned int i = 0;
@@ -157,37 +150,12 @@ get_midr(unsigned int * val)
 
 static
 void
-set_undef_flag(co15_result * out)
-{
-    if (out == NULL)
-    {
-        goto done;
-    }   
-    
-    spin_lock(&g_undef_flag_lock);
-    if (g_undef_flag == 1)
-    {
-        out->status = MS_ERROR_UNDEFINST;
-        g_undef_flag = 0;
-    }
-    else
-    {
-        out->status = MS_ERROR_SUCCESS;
-    }
-    spin_unlock(&g_undef_flag_lock);
-    
-done:
-    return;
-}
-
-static
-void
 call_func_ptr(
     void * result_out)
 {   
     unsigned int cpu_index = 0;
     unsigned int func_index = 0;
-    co15_result * co15_result_entry = NULL;
+    ms_data * co15_result_entry = NULL;
     co15_result_cpu_wrapper * result_out_cast = NULL;
     unsigned int midr_result = 0;
     unsigned long long cmd_result_64 = 0;   
@@ -303,7 +271,7 @@ cpu_online_wrapper(unsigned int cpu,
 {   
     int result = -1;
     co15_result_cpu_wrapper * data_cast = NULL;
-    co15_result * entry = NULL;
+    ms_data * entry = NULL;
         
     if ((threadfn == NULL) || (data == NULL))
     {
@@ -337,14 +305,14 @@ cpu_online_wrapper(unsigned int cpu,
         }
     }   
     
-    if (smp_call_function_single(cpu, call_func_ptr, data, 1))
+    if (smp_call_function_single(cpu, threadfn, data, 1))
     {
         TRACE("Function call fail\n", 0);
         entry->status = MS_ERROR_SMP_SINGLE;
         goto done;
     }   
 #else
-    call_func_ptr(data);
+    threadfn(data);
 #endif
     result = 0;
 done:
@@ -352,7 +320,6 @@ done:
     return result;
 }
 
-static
 int
 on_each_cpu_kick(void (*funcptr)(void * funcdata),
                     co15_result_cpu_wrapper * data)
@@ -391,7 +358,6 @@ on_each_cpu_kick(void (*funcptr)(void * funcdata),
             }
         }
     }
-    
     status = 0;
     
 done:
@@ -408,11 +374,9 @@ done:
  * @return 0 on success, -1 on error
  * 
  * ***************************************************/
-static
 int
 call_func_return_results(
-    unsigned int cmd,
-    co15_result_cpu * result_out)
+    ms_data_cpu * result_out)
 {
     int result = -1;
     unsigned int index_out = 0;
@@ -423,10 +387,10 @@ call_func_return_results(
         goto done;
     }
     memset(&local_result, 0x0, sizeof(co15_result_cpu_wrapper));
-    TRACE("Command received: %x\n", cmd);
+    TRACE("Command received: %x\n", result_out->code);
     
     /* locate function in global table */   
-    if (find_function_index(cmd, &index_out) != 0)
+    if (find_function_index(result_out->code, &index_out) != 0)
     {
         TRACE("Failed to find function\n", 0);
         goto done;      
@@ -463,108 +427,6 @@ done:
     return result;
 }
 
-register_undef_hook_t reg_undef_hook_p = NULL;
-unregister_undef_hook_t unreg_undef_hook_p = NULL;
-void ms_kernel_return(struct pt_regs * regs);
-
-/******************************************************
- * Handle cases of incomplete implementations to avoid
- * kernel OOPS. This may not work on all systems.
- * @todo -- add flag to optionally disable
- *   
- * @param [in] void 
- * 
- * @return 0 on success, -1 on error
- * 
- * ***************************************************/
-int
-ms_find_undef_hook(void)
-{
-    int result = -1;
-    
-    reg_undef_hook_p = (register_undef_hook_t)kallsyms_lookup_name("register_undef_hook");
-    if (reg_undef_hook_p == NULL)
-    {
-        TRACE("Failed to find symbol\n", 0);
-        goto done;
-    }
-    TRACE("Found reg_undef_hook @ %p\n", reg_undef_hook_p);
-
-    unreg_undef_hook_p = (unregister_undef_hook_t)kallsyms_lookup_name("unregister_undef_hook");
-    if (unreg_undef_hook_p == NULL)
-    {
-        TRACE("Failed to find symbol\n", 0);
-    }
-    TRACE("Found unreg_undef_hook @ %p\n", unreg_undef_hook_p);
-    
-    result = 0;
-done:
-    return result;
-}
-
-static
-int
-undef_hook(
-    struct pt_regs * regs,
-    unsigned int instr)
-{       
-    g_undef_flag = 1;   
-    
-#ifdef __aarch64__
-    ms_kernel_return(regs);
-#else
-    regs->ARM_pc += 4;
-#endif
-    return 0;
-}
-
-static struct undef_hook hook_struct = 
-{
-    .instr_mask = 0x0,
-    .instr_val = 0x0,
-#ifdef __aarch64__
-    .pstate_mask = 0x0,
-    .pstate_val = 0x0,
-#else
-    .cpsr_mask = UND_MODE,
-    .cpsr_val = SVC_MODE,   
-#endif
-    .fn = undef_hook
-};
-
-int
-ms_add_undef_instr_hook(void)
-{
-    int result = -1;
-        
-    if (reg_undef_hook_p == NULL)
-    {
-        goto done;
-    }
-    reg_undef_hook_p(&hook_struct);
-    
-    TRACE("Undef_instr hook added\n", 0);
-
-    result = 0;
-done: 
-    return result;   
-}
-
-void
-ms_del_undef_instr_hook(void)
-{
-    if (unreg_undef_hook_p != NULL)
-    {
-        unreg_undef_hook_p(&hook_struct);
-    }
-    else
-    {       
-        list_del(&hook_struct.node);
-    }
-    TRACE("Unregistered undef_instr hook\n", 0);
-}
-
-
 /******************************************************
  * Locates the requested IOCTL and packages the results
  *  
@@ -574,42 +436,43 @@ ms_del_undef_instr_hook(void)
  * 
  * ***************************************************/
 int
-call_cmd_co(void * buffer)
+call_cmd(void * buffer,
+            int (*pcall)(ms_data_cpu * result_out))
 {
     int result = -1;
-    co15_result_cpu * user_buffer = NULL;
-    co15_result_cpu user_buffer_local;
+    ms_data_cpu * user_buffer = NULL;
+    ms_data_cpu user_buffer_local;
     
-    if (buffer == NULL)
+    if ((buffer == NULL) || (pcall == NULL))
     {
         TRACE("param error\n", 0);
         goto done;
     }
-    user_buffer = (co15_result_cpu *)buffer;    
+    user_buffer = (ms_data_cpu *)buffer;    
     
     spin_lock_init(&g_undef_flag_lock);
     spin_lock(&g_undef_flag_lock);
     g_undef_flag = 0;    
     spin_unlock(&g_undef_flag_lock);
     
-    memset(&user_buffer_local, 0x0, sizeof(co15_result_cpu));
+    memset(&user_buffer_local, 0x0, sizeof(ms_data_cpu));
         
     /* Get local kernel copy */ 
-    if (copy_from_user(&user_buffer_local, user_buffer, sizeof(co15_result_cpu)) != 0)
+    if (copy_from_user(&user_buffer_local, user_buffer, sizeof(ms_data_cpu)) != 0)
     {
         TRACE("Could not get data from userspace: %d\n", result);
         goto done;
     }
         
-    /* Call function & get results */   
-    if (call_func_return_results(user_buffer_local.code, &user_buffer_local) != 0)
+    /* Call function & get results */
+    if (pcall(&user_buffer_local) != 0)
     {
         TRACE("Could not call function & get results\n", 0);
         goto done;
     }
     
     /* Copy results back to user space */   
-    if (copy_to_user(user_buffer, &user_buffer_local, sizeof(co15_result_cpu)) != 0)
+    if (copy_to_user(user_buffer, &user_buffer_local, sizeof(ms_data_cpu)) != 0)
     {
         TRACE("Could not send data back to userspace: %d\n", result);
         goto done;

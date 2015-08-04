@@ -8,24 +8,196 @@
 #include "ms_error.h"
 #include "support.h"
 #include "parse_breakout.h"
-#include "bitfield_armv7a.h"
-#include "bitfield_armv8a.h"
-#include "bitfield_cortex-a7.h"
-#include "bitfield_cortex-a15.h"
-#include "bitfield_cortex-a53.h"
-#include "bitfield_cortex-a57.h"
+#include "bitfields/bitfield_armv7a.h"
+#include "bitfields/bitfield_armv8a.h"
+#include "bitfields/bitfield_cortex-a7.h"
+#include "bitfields/bitfield_cortex-a15.h"
+#include "bitfields/bitfield_cortex-a53.h"
+#include "bitfields/bitfield_cortex-a57.h"
+#include "bitfields/bitfield_gicv2.h"
 #include "raw_results.h"
+
 
 bitfield_table_entry bitfield_table[] =
 {   
-    { TYPE_IMPL, bitfield_cortex_a7_table, return_bitfield_cortex_a7_size },    
-    { TYPE_IMPL, bitfield_cortex_a15_table, return_bitfield_cortex_a15_size }, 
-    { TYPE_IMPL, bitfield_cortex_a53_table, return_bitfield_cortex_a53_size },
-    { TYPE_IMPL, bitfield_cortex_a57_table, return_bitfield_cortex_a57_size },
+    { TYPE_IMPL, IMPL_CORTEX_A7, bitfield_cortex_a7_table, return_bitfield_cortex_a7_size, NULL },    
+    { TYPE_IMPL, IMPL_CORTEX_A15, bitfield_cortex_a15_table, return_bitfield_cortex_a15_size, NULL }, 
+    { TYPE_IMPL, IMPL_CORTEX_A53, bitfield_cortex_a53_table, return_bitfield_cortex_a53_size, NULL },
+    { TYPE_IMPL, IMPL_CORTEX_A57, bitfield_cortex_a57_table, return_bitfield_cortex_a57_size, NULL },
     
-    { TYPE_ARCH, bitfield_armv7a_table, return_bitfield_armv7a_size},
-    { TYPE_ARCH, bitfield_armv8a_table, return_bitfield_armv8a_size},
+    { TYPE_ARCH, ARCH_ARMV7A, bitfield_armv7a_table, return_bitfield_armv7a_size, NULL},
+    { TYPE_ARCH, ARCH_ARMV8A, bitfield_armv8a_table, return_bitfield_armv8a_size, NULL},
+    
+    { TYPE_MM, GICC_V2, bitfield_gicv2_table, return_bitfield_gicv2_size, return_bitfield_gicv2_compsize},
+    
 };
+
+static bitfield_info_heap * g_bitfield_table_heap = NULL;
+static unsigned int g_bitfield_table_size = 0;
+
+
+static
+unsigned int
+mscode(unsigned int partnumber,
+        unsigned int instruction,
+        unsigned int field)
+{
+    unsigned int code = 0;
+    
+    code = (partnumber << MSCODE_PARTNUMBERSHIFT);
+    code |= (instruction << MSCODE_INSTRUCTIONSHIFT);
+    code |= (field << MSCODE_FIELDSHIFT);
+
+    return code;
+}
+
+static
+unsigned int
+create_uid(unsigned int i,
+            unsigned int j,
+            unsigned int k,
+            unsigned char * group)
+{
+    unsigned int uid = 0;
+    unsigned int part = 0;
+    if (strncmp(group, "gicc", PARSE_MAX_FUNCTIONAL - 1) == 0)        
+    {
+        part = GICC_V2;
+    }
+    else if (strncmp(group, "gicd", PARSE_MAX_FUNCTIONAL - 1) == 0)
+    {
+        part = GICD_V2;
+    }
+    else if (strncmp(group, "gich", PARSE_MAX_FUNCTIONAL - 1) == 0)
+    {
+        part = GICH_V2;
+    }
+    else if (strncmp(group, "gicv", PARSE_MAX_FUNCTIONAL - 1) == 0)
+    {
+        part = GICV_V2;
+    }
+    
+    part = mscode(part,
+                    bitfield_table[i].table_ptr[j].ioctl_code,
+                    bitfield_table[i].table_ptr[j].ioctl_code + (k * MS_GICV2_ALIGNMENT));
+    return part;
+}
+
+int
+read_tables_to_memory()
+{
+    int result = -1;
+    int i = 0;
+    int j = 0;
+    int k = 0;
+    unsigned int buffer_size = 0;
+    unsigned int buffer_index = 0;
+    char num_buffer[32];
+    /* Expand tables into memory
+  
+    /* Get allocation size & allocate */    
+    for (i = 0; i < sizeof(bitfield_table) / sizeof(bitfield_table_entry); ++i)
+    {   
+        buffer_size += bitfield_table[i].table_size_ptr() * sizeof(bitfield_info_heap);     
+    }   
+    
+    g_bitfield_table_heap = (bitfield_info_heap *)malloc(buffer_size);
+    if (g_bitfield_table_heap == NULL)
+    {
+        TRACE("Failed to allocate %d\n", buffer_size);
+        goto done;
+    }
+    TRACE("Allocated %d bytes for table\n", buffer_size);
+
+    buffer_index = 0;
+    /* Copy & expand table entries */
+    for (i = 0; i < sizeof(bitfield_table) / sizeof(bitfield_table_entry); ++i)
+    {   
+        if ((bitfield_table[i].table_type == TYPE_ARCH) ||
+            (bitfield_table[i].table_type == TYPE_IMPL))
+        {
+            /* System Register access */
+            for (j = 0; j < bitfield_table[i].table_size_ptr(); ++j)
+            {
+                g_bitfield_table_heap[buffer_index].table_type =        bitfield_table[i].table_type;
+                g_bitfield_table_heap[buffer_index].info.range =        bitfield_table[i].table_ptr[j].range;
+                
+                /* Generate bitfield code */
+                g_bitfield_table_heap[buffer_index].info.bitfield_code =    mscode(bitfield_table[i].part_number,
+                                                                                bitfield_table[i].table_ptr[j].ioctl_code,
+                                                                                bitfield_table[i].table_ptr[j].bitfield_code);
+                
+                g_bitfield_table_heap[buffer_index].info.ioctl_code =       bitfield_table[i].table_ptr[j].ioctl_code;
+                g_bitfield_table_heap[buffer_index].info.ppl =              bitfield_table[i].table_ptr[j].ppl;
+                g_bitfield_table_heap[buffer_index].info.rightshift =       bitfield_table[i].table_ptr[j].rightshift;
+                g_bitfield_table_heap[buffer_index].info.mask =                 bitfield_table[i].table_ptr[j].mask;
+                g_bitfield_table_heap[buffer_index].info.bitfield =             bitfield_table[i].table_ptr[j].bitfield;
+                g_bitfield_table_heap[buffer_index].info.functional_group =     bitfield_table[i].table_ptr[j].functional_group;
+                
+                g_bitfield_table_heap[buffer_index].info.description =      bitfield_table[i].table_ptr[j].description;
+                strncpy(g_bitfield_table_heap[buffer_index].register_name_expanded, bitfield_table[i].table_ptr[j].register_name, PARSE_MAX_REGISTER - 1);
+                ++buffer_index;
+            }           
+        }
+        if (bitfield_table[i].table_type == TYPE_MM)
+        {
+            /* Memory mapped access */
+            for (j = 0; j < bitfield_table[i].table_compsize_ptr(); ++j)
+            {
+                /* Create an entry for each index in range
+                 * Allocate unique code based off offset */
+                for (k = 0; k < bitfield_table[i].table_ptr[j].range; k++)
+                {
+                    g_bitfield_table_heap[buffer_index].table_type =        bitfield_table[i].table_type;
+                    g_bitfield_table_heap[buffer_index].info.range =        bitfield_table[i].table_ptr[j].range;                   
+                    g_bitfield_table_heap[buffer_index].info.ioctl_code =       bitfield_table[i].table_ptr[j].ioctl_code;
+                    g_bitfield_table_heap[buffer_index].info.ppl =              bitfield_table[i].table_ptr[j].ppl;
+                    g_bitfield_table_heap[buffer_index].info.rightshift =       bitfield_table[i].table_ptr[j].rightshift;
+                    g_bitfield_table_heap[buffer_index].info.mask =                 bitfield_table[i].table_ptr[j].mask;
+                    g_bitfield_table_heap[buffer_index].info.bitfield =             bitfield_table[i].table_ptr[j].bitfield;
+                    g_bitfield_table_heap[buffer_index].info.functional_group =     bitfield_table[i].table_ptr[j].functional_group;                    
+                    g_bitfield_table_heap[buffer_index].info.description =      bitfield_table[i].table_ptr[j].description;
+                    if (bitfield_table[i].table_ptr[j].bitfield_code == -1)
+                    {
+                        /* create code & register name */
+                        g_bitfield_table_heap[buffer_index].info.bitfield_code =    create_uid(i, j, k, bitfield_table[i].table_ptr[j].functional_group);
+                        g_bitfield_table_heap[buffer_index].info.ioctl_code = g_bitfield_table_heap[buffer_index].info.bitfield_code;
+                        
+                        /* expand register name */
+                        snprintf(num_buffer, 31, "%d", k);
+                        strncpy(g_bitfield_table_heap[buffer_index].register_name_expanded, bitfield_table[i].table_ptr[j].register_name, PARSE_MAX_REGISTER - 1);
+                        strncat(g_bitfield_table_heap[buffer_index].register_name_expanded, num_buffer, PARSE_MAX_REGISTER - 1);                        
+                    }
+                    else
+                    {
+                        //g_bitfield_table_heap[buffer_index].info.bitfield_code =    bitfield_table[i].table_ptr[j].bitfield_code;
+                          g_bitfield_table_heap[buffer_index].info.bitfield_code =    mscode(bitfield_table[i].part_number,
+                                                                                bitfield_table[i].table_ptr[j].ioctl_code,
+                                                                                bitfield_table[i].table_ptr[j].bitfield_code);
+                
+                        strncpy(g_bitfield_table_heap[buffer_index].register_name_expanded, bitfield_table[i].table_ptr[j].register_name, PARSE_MAX_REGISTER - 1);
+                    }
+                    ++buffer_index;
+                }
+            }           
+        }
+    }
+    
+    g_bitfield_table_size = buffer_index;
+    result = 0;
+done:
+    return result;
+}
+
+void
+erase_tables()
+{
+    if (g_bitfield_table_heap != NULL)
+    {
+        free(g_bitfield_table_heap);
+        g_bitfield_table_heap = NULL;
+    }
+}
 
 static
 long long
@@ -74,7 +246,6 @@ breakout_applymask(unsigned long long value,
  * uid, and returns the table index
  *  
  * @param [in] UID
- * @param [out] Table array index
  * @param [out] Index 
  * 
  * ***************************************************/
@@ -82,27 +253,20 @@ static
 int
 breakout_get_index(
     unsigned int code,  
-    unsigned int * table,
     unsigned int * index)
 {
     unsigned int i = 0; 
-    unsigned int j = 0;
     unsigned int table_size = 0;
     int result = -1;
     
-    for (i = 0; i < sizeof(bitfield_table) / sizeof(bitfield_table_entry); ++i)
-    {
-        table_size = bitfield_table[i].table_size_ptr();
-        for (j = 0; j < table_size; ++j)
+    for (i = 0; i < g_bitfield_table_size; ++i)
+    {       
+        if (g_bitfield_table_heap[i].info.bitfield_code == code)
         {
-            if (bitfield_table[i].table_ptr[j].bitfield_code == code)
-            {
-                *table = i;
-                *index = j;             
-                result = 0;
-                goto done;
-            }
-        }   
+            *index = i;             
+            result = 0;
+            goto done;
+        } 
     }
     result = -1;
 done:
@@ -115,10 +279,9 @@ get_ioctl(
     unsigned int code)
 {
     unsigned int index = -1;
-    unsigned int table = -1;
-    if (breakout_get_index(code, &table, &index) == 0)
+    if (breakout_get_index(code, &index) == 0)
     {
-        return bitfield_table[table].table_ptr[index].ioctl_code;
+        return g_bitfield_table_heap[index].info.ioctl_code;
     }
     return -1;
 }
@@ -129,10 +292,9 @@ get_register_name(
     unsigned int code)
 {   
     unsigned int index = -1;
-    unsigned int table = -1;
-    if (breakout_get_index(code, &table, &index) == 0)
+    if (breakout_get_index(code, &index) == 0)
     {
-        return bitfield_table[table].table_ptr[index].register_name;
+        return g_bitfield_table_heap[index].register_name_expanded;
     }
     return NULL;
 }
@@ -143,10 +305,9 @@ get_functional_group(
     unsigned int code)
 {   
     unsigned int index = -1;
-    unsigned int table = -1;
-    if (breakout_get_index(code, &table, &index) == 0)
+    if (breakout_get_index(code, &index) == 0)
     {
-        return bitfield_table[table].table_ptr[index].functional_group;
+        return g_bitfield_table_heap[index].info.functional_group;
     }
     return NULL;
 }
@@ -157,10 +318,9 @@ get_description(
     unsigned int code)
 {   
     unsigned int index = -1;
-    unsigned int table = -1;
-    if (breakout_get_index(code, &table, &index) == 0)
+    if (breakout_get_index(code, &index) == 0)
     {
-        return bitfield_table[table].table_ptr[index].description;
+        return g_bitfield_table_heap[index].info.description;
     }
     return NULL;
 }
@@ -171,10 +331,9 @@ get_bitfield(
     unsigned int code)
 {   
     unsigned int index = -1;
-    unsigned int table = -1;
-    if (breakout_get_index(code, &table, &index) == 0)
+    if (breakout_get_index(code, &index) == 0)
     {
-        return bitfield_table[table].table_ptr[index].bitfield;
+        return g_bitfield_table_heap[index].info.bitfield;
     }
     return NULL;
 }
@@ -319,6 +478,12 @@ get_decode_table(unsigned int uid,
         case IMPL_CORTEX_A57:
             strncpy(buffer, "cortex-a57", PARSE_MAX_PARTNUMBER - 1);
             break;
+        case GICC_V2:
+        case GICD_V2:
+        case GICH_V2:
+        case GICV_V2:
+            strncpy(buffer, "gicv2", PARSE_MAX_PARTNUMBER - 1);
+            break;
         default:
             strncpy(buffer, "unknown", PARSE_MAX_PARTNUMBER - 1);
             break;
@@ -364,7 +529,6 @@ get_bitfieldstamp(
     char * buffer)
 {
     unsigned int index = -1;
-    unsigned int table = -1;
     unsigned int msb = 0;
     unsigned int lsb = 0;
     unsigned int status = -1;
@@ -373,14 +537,14 @@ get_bitfieldstamp(
         TRACE("param error\n", 0);
         goto done;
     }
-    if (breakout_get_index(code, &table, &index) != 0)
+    if (breakout_get_index(code, &index) != 0)
     {
         TRACE("Failed to get index\n", 0);
         goto done;
         
     }
-    lsb = bitfield_table[table].table_ptr[index].rightshift;
-    msb = bitfield_table[table].table_ptr[index].mask - 1 + lsb;
+    lsb = g_bitfield_table_heap[index].info.rightshift;
+    msb = g_bitfield_table_heap[index].info.mask - 1 + lsb;
     
 
     sprintf(buffer, "%02d:%02d", msb, lsb); 
@@ -444,7 +608,8 @@ int
 breakout_add_ioctl(
     ms_list_head * list,    
     unsigned int ioctl,
-    unsigned int cpu)
+    unsigned int cpu,
+    unsigned int partnumber)
 {
     int result = -1;
     used_ioctl * temp = NULL;
@@ -464,7 +629,10 @@ breakout_add_ioctl(
     
     temp->ioctl_code = ioctl;
     temp->cpu = cpu;
-        
+    temp->partnumber = partnumber;
+    
+    TRACE("Adding: ioctl:%x cpu:%d partnumber:%x\n", ioctl, cpu, partnumber);
+    
     ms_list_add(list, (list_element *)temp);    
     
     result = 0;
@@ -666,27 +834,22 @@ get_groups(ms_list_head * listout)
 {
     int result = -1;
     int i = 0;
-    int j = 0;
     
     if (listout == NULL)
     {
         goto done;
     }
-     for (i = 0; i < sizeof(bitfield_table) / sizeof(bitfield_table_entry); ++i)
-     {
-         for (j = 0; j < bitfield_table[i].table_size_ptr(); ++j)
-         {           
-             if (get_find(listout, NULL, bitfield_table[i].table_ptr[j].functional_group) <= 0)
-             {
-                if (breakout_add_bitfield_result(listout,
-                                        bitfield_table[i].table_ptr[j].bitfield_code,
-                                        0, 0, 0, 0, 0, 0, 0) != 0)
-                {
-                    goto done;
-                }
-            }           
-            
-         }
+     for (i = 0; i < g_bitfield_table_size; ++i)
+     { 
+         if (get_find(listout, NULL, g_bitfield_table_heap[i].info.functional_group) <= 0)
+         {
+            if (breakout_add_bitfield_result(listout,
+                                    g_bitfield_table_heap[i].info.bitfield_code,
+                                    0, 0, 0, 0, 0, 0, 0) != 0)
+            {
+                goto done;
+            }
+        }   
      }   
      
      result = 0;
@@ -699,27 +862,22 @@ int get_registers(ms_list_head * listout)
 {
     int result = -1;
     int i = 0;
-    int j = 0;
     
     if (listout == NULL)
     {
         goto done;
     }
-     for (i = 0; i < sizeof(bitfield_table) / sizeof(bitfield_table_entry); ++i)
+     for (i = 0; i < g_bitfield_table_size; ++i)
      {
-         for (j = 0; j < bitfield_table[i].table_size_ptr(); ++j)
-         {           
-             if (get_find(listout, bitfield_table[i].table_ptr[j].register_name, NULL) <= 0)
-             {
-                if (breakout_add_bitfield_result(listout,
-                                        bitfield_table[i].table_ptr[j].bitfield_code,
-                                        0, 0, 0, 0, 0, 0, 0) != 0)
-                {
-                    goto done;
-                }
-            }           
-            
-         }
+         if (get_find(listout, g_bitfield_table_heap[i].register_name_expanded, NULL) <= 0)
+         {
+            if (breakout_add_bitfield_result(listout,
+                                    g_bitfield_table_heap[i].info.bitfield_code,
+                                    0, 0, 0, 0, 0, 0, 0) != 0)
+            {
+                goto done;
+            }
+        }    
      }   
      
      result = 0;
@@ -732,23 +890,19 @@ int get_bitfields(ms_list_head * listout)
 {
     int result = -1;
     int i = 0;
-    int j = 0;
     
     if (listout == NULL)
     {
         goto done;
     }
-     for (i = 0; i < sizeof(bitfield_table) / sizeof(bitfield_table_entry); ++i)
-     {
-         for (j = 0; j < bitfield_table[i].table_size_ptr(); ++j)
-         {                  
-            if (breakout_add_bitfield_result(listout,
-                                    bitfield_table[i].table_ptr[j].bitfield_code,
-                                    0, 0, 0, 0, 0, 0, 0) != 0)
-            {
-                goto done;
-            }           
-         }
+     for (i = 0; i < g_bitfield_table_size; ++i)
+     {         
+        if (breakout_add_bitfield_result(listout,
+                                g_bitfield_table_heap[i].info.bitfield_code,
+                                0, 0, 0, 0, 0, 0, 0) != 0)
+        {
+            goto done;
+        }
      }   
      
      result = 0;
@@ -760,8 +914,7 @@ int get_bitfields(ms_list_head * listout)
 static
 int
 breakout_add_table_index(ms_list_head * list,
-                        unsigned int table_array_index,
-                        unsigned int value)
+                        unsigned int index)
 {
     int result = -1;
     table_index * temp_index = NULL;
@@ -777,9 +930,8 @@ breakout_add_table_index(ms_list_head * list,
     {
         TRACE("malloc error\n", 0);
         goto done;
-    }
-    temp_index->value = value;
-    temp_index->table_array_index = table_array_index;
+    }    
+    temp_index->index = index;
     
     ms_list_add(list, (list_element *)temp_index);
     
@@ -798,7 +950,6 @@ breakout_construct_bitfield_list(
     /* Based off ioctl number, record all indices */
     int result = -1;
     unsigned int i = 0;
-    unsigned int j = 0;
     unsigned int table_size = 0;
     if (index_list_out == NULL)
     {
@@ -806,21 +957,16 @@ breakout_construct_bitfield_list(
         goto done;
     }    
      
-    /* For all tables */
-    for (i = 0; i < sizeof(bitfield_table) / sizeof(bitfield_table_entry); ++i)
+    /* For all items */
+    for (i = 0; i < g_bitfield_table_size; ++i)
     {
-        /* For all items in table */
-        table_size = bitfield_table[i].table_size_ptr();
-        for (j = 0; j < table_size; j++)
+        if (g_bitfield_table_heap[i].info.ioctl_code == ioctl)
         {
-            if (bitfield_table[i].table_ptr[j].ioctl_code == ioctl)
+            /* Add this register to list */
+            //TRACE("Adding table index to list: bitfield: %s part: %d, table: %d, index: %d, ioctl: 0x%x\n", bitfield_table[i].table_ptr[j].bitfield, MSCODE_PARTNUMBER(bitfield_table[i].table_ptr[j].bitfield_code), i, j, ioctl);
+            if (breakout_add_table_index(index_list_out, i) != 0)
             {
-                /* Add this register to list */
-                //TRACE("Adding table index to list: bitfield: %s part: %d, table: %d, index: %d, ioctl: 0x%x\n", bitfield_table[i].table_ptr[j].bitfield, MSCODE_PARTNUMBER(bitfield_table[i].table_ptr[j].bitfield_code), i, j, ioctl);
-                if (breakout_add_table_index(index_list_out, i, j) != 0)
-                {
-                    TRACE("Failed to add item to list\n", 0);
-                }
+                TRACE("Failed to add item to list\n", 0);
             }
         }
     }   
@@ -872,7 +1018,7 @@ breakout_apply_masks_to_list(
         goto done;
     }   
     /*
-     * 1) For each (table, index) item in list of indices,
+     * 1) For each index in list,
      * 2) Apply the mask to the value
      * 3) Add masked value to list
      * 
@@ -884,14 +1030,14 @@ breakout_apply_masks_to_list(
      {       
          /* Apply mask */
         masked_value = breakout_applymask(cat_value,
-                    bitfield_table[temp_index->table_array_index].table_ptr[temp_index->value].rightshift,
-                    bitfield_table[temp_index->table_array_index].table_ptr[temp_index->value].mask); 
+                    g_bitfield_table_heap[temp_index->index].info.rightshift,
+                    g_bitfield_table_heap[temp_index->index].info.mask); 
 
          
          /* Save result */
          result = breakout_add_bitfield_result(list_out,
-                                        bitfield_table[temp_index->table_array_index].table_ptr[temp_index->value].bitfield_code, 
-                                        bitfield_table[temp_index->table_array_index].table_ptr[temp_index->value].ioctl_code, 
+                                        g_bitfield_table_heap[temp_index->index].info.bitfield_code, 
+                                        g_bitfield_table_heap[temp_index->index].info.ioctl_code, 
                                         masked_value,
                                         cat_value,
                                         cpu_in,
@@ -1274,13 +1420,13 @@ breakout_call_driver(ms_list_head * list_in,
     used_ioctl * ioctl_list = NULL;
     unsigned int cpu_iter = 0;
     
-    co15_result_cpu local_result;
+    ms_data_cpu local_result;
     if ((list_in == NULL) || (list_out == NULL))
     {
         goto done;
     }
     
-    memset(&local_result, 0x0, sizeof(co15_result_cpu));
+    memset(&local_result, 0x0, sizeof(ms_data_cpu));
     
     /* Traverse ioctl list,
     * call ioctls
@@ -1292,8 +1438,22 @@ breakout_call_driver(ms_list_head * list_in,
     {
         /* Set requested cpu code & send request to driver */
         local_result.code = ioctl_list->ioctl_code;
-        local_result.pcpu = ioctl_list->cpu;        
-        if (driver_results(MS_IOCTL_CO, &local_result) != 0)
+        local_result.pcpu = ioctl_list->cpu;  
+        local_result.part_number = ioctl_list->partnumber;
+                
+        switch(ioctl_list->partnumber)
+        {
+            case (GICC_V2):
+            case (GICD_V2):
+            case (GICH_V2):
+            case (GICV_V2):
+                result = driver_results(MS_IOCTL_GIC, &local_result);
+                break;
+            default:
+                result = driver_results(MS_IOCTL_CO, &local_result);
+                break;          
+        }
+        if (result != 0)
         {
             TRACE("Failed to send ioctl\n", 0);
         }
@@ -1335,13 +1495,13 @@ breakout_call_usermode(ms_list_head * list_in,
     used_ioctl * ioctl_list = NULL;
     unsigned int cpu_iter = 0;
     
-    co15_result local_result;
+    ms_data local_result;
     if ((list_in == NULL) || (list_out == NULL))
     {
         goto done;
     }
     
-    memset(&local_result, 0x0, sizeof(co15_result));
+    memset(&local_result, 0x0, sizeof(ms_data));
     
     
     ioctl_list = (used_ioctl *)list_in->head;
@@ -1443,14 +1603,16 @@ breakout_sort_ioctls(ms_list_head * internal_list,
                       //TRACE("Adding to PL0 list\n", 0);
                         breakout_add_ioctl(&to_usermode,
                                             temp_result_info->ioctl_code,
-                                            temp_result_info->cpu);
+                                            temp_result_info->cpu,
+                                            temp_result_info->part_number);
                   }
                   if (temp_result_info->ppl & NS_PRIVILEGE_LEVEL_1)
                   {
                       //TRACE("Adding to PL1 list\n", 0);
                         breakout_add_ioctl(&to_driver,
                                             temp_result_info->ioctl_code,
-                                            temp_result_info->cpu);
+                                            temp_result_info->cpu,
+                                            temp_result_info->part_number);
                   }
               }
               else 
@@ -1458,17 +1620,19 @@ breakout_sort_ioctls(ms_list_head * internal_list,
                   //TRACE("Specified PL\n", 0); 
                   if (temp_result_info->pl & NS_PRIVILEGE_LEVEL_0)
                   {
-                     //TRACE("Adding to PL0 list\n", 0);
+                        //TRACE("Adding to PL0 list\n", 0);
                         breakout_add_ioctl(&to_usermode,
                                             temp_result_info->ioctl_code,
-                                            temp_result_info->cpu);
+                                            temp_result_info->cpu,
+                                            temp_result_info->part_number);
                   }
                   if (temp_result_info->pl & NS_PRIVILEGE_LEVEL_1)
                   {
-                      //TRACE("Adding to PL1 list\n", 0);
+                        //TRACE("Adding to PL1 list\n", 0);
                         breakout_add_ioctl(&to_driver,
                                             temp_result_info->ioctl_code,
-                                            temp_result_info->cpu);
+                                            temp_result_info->cpu,
+                                            temp_result_info->part_number);
                   }
               }
          }
@@ -1499,90 +1663,9 @@ done:
     return status;
 }
 
-
 static
 int
 breakout_search_table(
-    unsigned int table_type,
-    bitfield_info * table_ptr,
-    int (*table_size_ptr)(void),
-    match_info * info,
-    ms_list_head * list_out)
-{
-    int status = -1;
-    int i = 0;
-    
-    if ((list_out == NULL) || (info == NULL) ||
-        (table_ptr == NULL) || (table_size_ptr == NULL))
-    {
-        goto done;
-    }   
-        
-    /* For entire table */
-    for (i = 0; i < table_size_ptr(); ++i)
-    {
-        
-        /* if the bitfield code, functional group, or register name matches */
-        if ((table_ptr[i].bitfield_code == info->bitfield_code)  ||
-            (strncmp(table_ptr[i].functional_group,
-                    (const char *)info->functional_group,
-                    PARSE_MAX_FUNCTIONAL - 1) == 0)             ||
-            (strncmp(table_ptr[i].register_name,
-                    (const char *)info->register_name,
-                    PARSE_MAX_REGISTER - 1) == 0))
-        {                   
-            if (table_type == TYPE_IMPL)
-            {
-                //add if (arch matches && (all || requested))
-                if (info->architecture == get_arch_from_impl(MSCODE_PARTNUMBER(table_ptr[i].bitfield_code))
-                        && ((info->implementation == IMPL_ALL) || (info->implementation == MSCODE_PARTNUMBER(table_ptr[i].bitfield_code))))
-                {                   
-                    if (breakout_add_match(list_out,
-                                        table_ptr[i].ppl,
-                                        info->cpu,
-                                        info->pl,
-                                        table_ptr[i].bitfield_code,
-                                        table_ptr[i].ioctl_code,
-                                        info->noparse,
-                                        MSCODE_PARTNUMBER(table_ptr[i].bitfield_code),
-                                        info->calc,
-                                        info->calc_value) != 0)
-                    {
-                        TRACE("Failed to save result to list\n", 0);
-                    }
-                }
-            }
-            else if (table_type == TYPE_ARCH)
-            {
-                //add if (arch matches)             
-                if ((MSCODE_PARTNUMBER(table_ptr[i].bitfield_code) == info->architecture))
-                {                   
-                    if (breakout_add_match(list_out,
-                                        table_ptr[i].ppl,
-                                        info->cpu,
-                                        info->pl,
-                                        table_ptr[i].bitfield_code,
-                                        table_ptr[i].ioctl_code,
-                                        info->noparse,
-                                        MSCODE_PARTNUMBER(table_ptr[i].bitfield_code),
-                                        info->calc,
-                                        info->calc_value) != 0)
-                    {
-                        TRACE("Failed to save result to list\n", 0);
-                    }
-                }               
-            }
-        }   
-    }
-     
-     status = 0;
- done:
-    return status;
-}
-
-static
-int
-breakout_search_tables(
     match_info * info,
     ms_list_head * list_out)
 {
@@ -1596,17 +1679,77 @@ breakout_search_tables(
     }
     
     /* For all tables */
-    for (i = 0; i < sizeof(bitfield_table) / sizeof(bitfield_table_entry); ++i)
-    {       
-        if (breakout_search_table(bitfield_table[i].table_type,
-                                    bitfield_table[i].table_ptr,
-                                        bitfield_table[i].table_size_ptr,
-                                        info,
-                                        list_out) != 0)
-        {
-            TRACE("Failed to interate tables\n", 0);
-            goto done;
-        }
+    for (i = 0; i < g_bitfield_table_size; ++i)
+    {                           
+         /* if the bitfield code, functional group, or register name matches */
+        if ((g_bitfield_table_heap[i].info.bitfield_code == info->bitfield_code)  ||
+            (strncmp(g_bitfield_table_heap[i].info.functional_group,
+                    (const char *)info->functional_group,
+                    PARSE_MAX_FUNCTIONAL - 1) == 0)             ||
+            (strncmp(g_bitfield_table_heap[i].register_name_expanded,
+                    (const char *)info->register_name,
+                    PARSE_MAX_REGISTER - 1) == 0))
+        {                   
+            if (g_bitfield_table_heap[i].table_type == TYPE_IMPL)
+            {
+                //add if (arch matches && (all || requested))
+                if (info->architecture == get_arch_from_impl(MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code))
+                        && ((info->implementation == IMPL_ALL) || (info->implementation == MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code))))
+                {                   
+                    if (breakout_add_match(list_out,
+                                        g_bitfield_table_heap[i].info.ppl,
+                                        info->cpu,
+                                        info->pl,
+                                        g_bitfield_table_heap[i].info.bitfield_code,
+                                        g_bitfield_table_heap[i].info.ioctl_code,
+                                        info->noparse,
+                                        MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code),
+                                        info->calc,
+                                        info->calc_value) != 0)
+                    {
+                        TRACE("Failed to save result to list\n", 0);
+                    }
+                }
+            }
+            else if (g_bitfield_table_heap[i].table_type == TYPE_ARCH)
+            {
+                //add if (arch matches)             
+                if ((MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code) == info->architecture))
+                {                   
+                    if (breakout_add_match(list_out,
+                                        g_bitfield_table_heap[i].info.ppl,
+                                        info->cpu,
+                                        info->pl,
+                                        g_bitfield_table_heap[i].info.bitfield_code,
+                                        g_bitfield_table_heap[i].info.ioctl_code,
+                                        info->noparse,
+                                        MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code),
+                                        info->calc,
+                                        info->calc_value) != 0)
+                    {
+                        TRACE("Failed to save result to list\n", 0);
+                    }
+                }               
+            }
+            else if (g_bitfield_table_heap[i].table_type == TYPE_MM)
+            {
+                // add always -- assume component exists on platform
+                if (breakout_add_match(list_out,
+                                    g_bitfield_table_heap[i].info.ppl,
+                                    info->cpu,
+                                    info->pl,
+                                    g_bitfield_table_heap[i].info.bitfield_code,
+                                    g_bitfield_table_heap[i].info.ioctl_code,
+                                    info->noparse,
+                                    MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code),
+                                    info->calc,
+                                    info->calc_value) != 0)
+                {
+                    TRACE("Failed to save result to list\n", 0);
+                }            
+            }
+        }   
+       
     }
 
     result = 0;
@@ -1648,7 +1791,7 @@ find_bitfields(
     /* Search tables for matching bitfields -- 
     * Only add if we can parse the result,
     * save some search request fields in output list */
-    if (breakout_search_tables(info, &requested_bitfields_list) != 0)
+    if (breakout_search_table(info, &requested_bitfields_list) != 0)
     {
         TRACE("Failed to create bitfield search list\n", 0);
         goto done;

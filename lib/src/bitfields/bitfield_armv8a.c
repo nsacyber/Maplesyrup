@@ -1,0 +1,642 @@
+#include <stdio.h>
+#include <sys/ioctl.h>
+
+#include "maplesyrup.h"
+#include "parse.h"
+#include "parse_breakout.h"
+#include "bitfield_armv8a.h"
+
+
+bitfield_info bitfield_armv8a_table[] =
+{   
+    /* Identification Bitfields */ 
+    { 1, 0, MS_SYSREG_PFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "State0", "ident", "PFR0", "ARM instruction set support" },
+    { 1, 1, MS_SYSREG_PFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "State1", "ident", "PFR0", "Thumb instruction set support" },
+    { 1, 2, MS_SYSREG_PFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "State2", "ident", "PFR0", "Jazelle extension support" },
+    { 1, 3, MS_SYSREG_PFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "State3", "ident", "PFR0", "ThumbEE instruction set support" },
+    { 1, 4, MS_SYSREG_PFR0, NS_PRIVILEGE_LEVEL_1, 16, 16, "Reserved", "ident", "PFR0", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_PFR1, NS_PRIVILEGE_LEVEL_1, 0, 4, "Programmers' model", "ident", "PFR1", "Programmers' model" },
+    { 1, 1, MS_SYSREG_PFR1, NS_PRIVILEGE_LEVEL_1, 4, 4, "Security", "ident", "PFR1", "Security support" },
+    { 1, 2, MS_SYSREG_PFR1, NS_PRIVILEGE_LEVEL_1, 8, 4, "M profile programmers' model", "ident", "PFR1", "M profile programmers' model" },
+    { 1, 3, MS_SYSREG_PFR1, NS_PRIVILEGE_LEVEL_1, 12, 4, "Virtualization Extensions", "ident", "PFR1", "Virtualization Extensions" },
+    { 1, 4, MS_SYSREG_PFR1, NS_PRIVILEGE_LEVEL_1, 16, 4, "Generic Timer Extension", "ident", "PFR1", "Generic Timer Extension" },  
+    { 1, 5, MS_SYSREG_PFR1, NS_PRIVILEGE_LEVEL_1, 20, 4, "Sec_frac", "ident", "PFR1", "Security fractional field" }, 
+    { 1, 6, MS_SYSREG_PFR1, NS_PRIVILEGE_LEVEL_1, 24, 4, "Virt_frac", "ident", "PFR1", "Virtualization fractional field" },    
+    { 1, 7, MS_SYSREG_PFR1, NS_PRIVILEGE_LEVEL_1, 28, 4, "GIC", "ident", "PFR1", "System Register GIC CPU interface" },  
+    
+    { 1, 0, MS_SYSREG_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "EL0", "ident", "AA64PFR0", "EL0 exception handling" },
+    { 1, 1, MS_SYSREG_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "EL1", "ident", "AA64PFR0", "EL1 exception handling" },
+    { 1, 2, MS_SYSREG_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "EL2", "ident", "AA64PFR0", "EL2 exception handling" },
+    { 1, 3, MS_SYSREG_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "EL3", "ident", "AA64PFR0", "EL3 exception handling" },
+    { 1, 4, MS_SYSREG_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "FP", "ident", "AA64PFR0", "Floating-point implemented" },
+    { 1, 5, MS_SYSREG_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "AdvSIMD", "ident", "AA64PFR0", "Advanced SIMD implemented" },
+    { 1, 6, MS_SYSREG_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "GIC", "ident", "AA64PFR0", "System Register GIC interface" },
+    { 1, 7, MS_SYSREG_AA64PFR0, NS_PRIVILEGE_LEVEL_1, 28, 36, "Reserved", "ident", "AA64PFR0", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_AA64PFR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reserved", "ident", "AA64PFR1", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_DFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Coprocessor debug model", "ident", "DFR0", "Coprocessor debug model" },
+    { 1, 1, MS_SYSREG_DFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "Coprocessor secure debug model", "ident", "DFR0", "Coprocessor secure debug model" },
+    { 1, 2, MS_SYSREG_DFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Memory-mapped debug model", "ident", "DFR0", " Memory-mapped debug model" },
+    { 1, 3, MS_SYSREG_DFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "Coprocessor trace model", "ident", "DFR0", " Coprocessor trace model" },
+    { 1, 4, MS_SYSREG_DFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Memory-mapped trace model", "ident", "DFR0", "Memory-mapped trace model" },
+    { 1, 5, MS_SYSREG_DFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Debug model, M profile", "ident", "DFR0", "Debug model, M profile" },
+    { 1, 6, MS_SYSREG_DFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Performance Monitors Extension", "ident", "DFR0", "Performance Monitors Extension" },
+    { 1, 7, MS_SYSREG_DFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "Reserved", "ident", "DFR0", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_AFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Implementation Defined", "ident", "AFR0", "Implementation Defined" },
+    { 1, 1, MS_SYSREG_AFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "Implementation Defined", "ident", "AFR0", "Implementation Defined" },
+    { 1, 2, MS_SYSREG_AFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Implementation Defined", "ident", "AFR0", "Implementation Defined" },
+    { 1, 3, MS_SYSREG_AFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "Implementation Defined", "ident", "AFR0", "Implementation Defined" },
+    { 1, 4, MS_SYSREG_AFR0, NS_PRIVILEGE_LEVEL_1, 16, 16, "Reserved", "ident", "AFR0", "Reserved" },
+        
+    { 1, 0, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { 1, 1, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { 1, 2, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { 1, 3, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { 1, 4, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { 1, 5, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { 1, 6, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { 1, 7, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "Implementation Defined", "ident", "AA64AFR0", "Implementation Defined" },
+    { 1, 8, MS_SYSREG_AA64AFR0, NS_PRIVILEGE_LEVEL_1, 32, 32, "Reserved", "ident", "AA64AFR0", "Reserved" },
+
+    { 1, 0, MS_SYSREG_AA64AFR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Implementation Defined", "ident", "AA64AFR1", "Implementation Defined" },
+    
+    { 1, 0, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "DebugVer", "ident", "AA64DFR0", "Debug architecture version" },
+    { 1, 1, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "TraceVer", "ident", "AA64DFR0", "Trace support" },
+    { 1, 2, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "PMUVer", "ident", "AA64DFR0", "Performance Monitors extension version" },
+    { 1, 3, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "BRPs", "ident", "AA64DFR0", "Number of breakpoints" },
+    { 1, 4, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Reserved", "ident", "AA64DFR0", "Reserved" },
+    { 1, 5, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "WRPs", "ident", "AA64DFR0", "Number of watchpoints" },
+    { 1, 6, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Reserved", "ident", "AA64DFR0", "Reserved" },
+    { 1, 7, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "CTX_CMPs", "ident", "AA64DFR0", "Number of breakpoints that are context aware" },
+    { 1, 8, MS_SYSREG_AA64DFR0, NS_PRIVILEGE_LEVEL_1, 32, 32, "Reserved", "ident", "AA64DFR0", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_AA64DFR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reserved", "ident", "AA64DFR1", "Reserved" },
+        
+    { 1, 0, MS_SYSREG_MMFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "VMSA support", "ident", "MMFR0", "VMSA Support" },
+    { 1, 1, MS_SYSREG_MMFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "PMSA support", "ident", "MMFR0", "PMSA Support" },
+    { 1, 2, MS_SYSREG_MMFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Outermost shareability", "ident", "MMFR0", "Outermost shareability" },
+    { 1, 3, MS_SYSREG_MMFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "Shareability levels", "ident", "MMFR0", "Shareability levels" },
+    { 1, 4, MS_SYSREG_MMFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "TCM support", "ident", "MMFR0", "TCM/DMA Support" },
+    { 1, 5, MS_SYSREG_MMFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Auxiliary registers", "ident", "MMFR0", "Auxiliary registers" },
+    { 1, 6, MS_SYSREG_MMFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "FCSE support", "ident", "MMFR0", "FCSE support" },
+    { 1, 7, MS_SYSREG_MMFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "Innermost shareability", "ident", "MMFR0", "Innermost shareability" },
+    
+    { 1, 0, MS_SYSREG_MMFR1, NS_PRIVILEGE_LEVEL_1, 0, 4, "L1 Harvard cache VA", "ident", "MMFR1", "L1 Harvard cache VA" },
+    { 1, 1, MS_SYSREG_MMFR1, NS_PRIVILEGE_LEVEL_1, 4, 4, "L1 unified cache VA", "ident", "MMFR1", "L1 unified cache VA" },
+    { 1, 2, MS_SYSREG_MMFR1, NS_PRIVILEGE_LEVEL_1, 8, 4, "L1 Harvard cache set/way", "ident", "MMFR1", "Harvard cache set/way" },
+    { 1, 3, MS_SYSREG_MMFR1, NS_PRIVILEGE_LEVEL_1, 12, 4, "L1 unified cache set/way", "ident", "MMFR1", "L1 unified cache set/way" },
+    { 1, 4, MS_SYSREG_MMFR1, NS_PRIVILEGE_LEVEL_1, 16, 4, "L1 Harvard cache", "ident", "MMFR1", "L1 Harvard cache" },
+    { 1, 5, MS_SYSREG_MMFR1, NS_PRIVILEGE_LEVEL_1, 20, 4, "L1 unified cache VA", "ident", "MMFR1", "L1 unified cache" },
+    { 1, 6, MS_SYSREG_MMFR1, NS_PRIVILEGE_LEVEL_1, 24, 4, "L1 cache test and clean", "ident", "MMFR1", "L1 cache test and clean" },
+    { 1, 7, MS_SYSREG_MMFR1, NS_PRIVILEGE_LEVEL_1, 28, 4, "Branch predictor", "ident", "MMFR1", "Branch predictor" },
+    
+    { 1, 0, MS_SYSREG_MMFR2, NS_PRIVILEGE_LEVEL_1, 0, 4, "L1 Harvard fg fetch", "ident", "MMFR2", "L1 Harvard fg fetch" },
+    { 1, 1, MS_SYSREG_MMFR2, NS_PRIVILEGE_LEVEL_1, 4, 4, "L1 Harvard bg fetch", "ident", "MMFR2", "L1 Harvard bg fetch" },
+    { 1, 2, MS_SYSREG_MMFR2, NS_PRIVILEGE_LEVEL_1, 8, 4, "L1 Harvard range", "ident", "MMFR2", "L1 Harvard range" },
+    { 1, 3, MS_SYSREG_MMFR2, NS_PRIVILEGE_LEVEL_1, 12, 4, "Harvard TLB", "ident", "MMFR2", "Harvard TLB" },
+    { 1, 4, MS_SYSREG_MMFR2, NS_PRIVILEGE_LEVEL_1, 16, 4, "Unified TLB", "ident", "MMFR2", "Unified TLB" },
+    { 1, 5, MS_SYSREG_MMFR2, NS_PRIVILEGE_LEVEL_1, 20, 4, "Mem barrier", "ident", "MMFR2", "Mem barrier" },
+    { 1, 6, MS_SYSREG_MMFR2, NS_PRIVILEGE_LEVEL_1, 24, 4, "WFI stall", "ident", "MMFR2", "WFI stall" },
+    { 1, 7, MS_SYSREG_MMFR2, NS_PRIVILEGE_LEVEL_1, 28, 4, "HW Access flag", "ident", "MMFR2", "HW Access flag" },
+    
+    { 1, 0, MS_SYSREG_MMFR3, NS_PRIVILEGE_LEVEL_1, 0, 4, "Cache maintain MVA", "ident", "MMFR3", "Cache maintain MVA" },
+    { 1, 1, MS_SYSREG_MMFR3, NS_PRIVILEGE_LEVEL_1, 4, 4, "Cache maintain set/way", "ident", "MMFR3", "Cache maintain set/way" },
+    { 1, 2, MS_SYSREG_MMFR3, NS_PRIVILEGE_LEVEL_1, 8, 4, "BP maintain", "ident", "MMFR3", "BP maintain" },
+    { 1, 3, MS_SYSREG_MMFR3, NS_PRIVILEGE_LEVEL_1, 12, 4, "Maintenance broadcast", "ident", "MMFR3", "Maintenance broadcast" },
+    { 1, 4, MS_SYSREG_MMFR3, NS_PRIVILEGE_LEVEL_1, 16, 4, "Reserved", "ident", "MMFR3", "Reserved" },
+    { 1, 5, MS_SYSREG_MMFR3, NS_PRIVILEGE_LEVEL_1, 20, 4, "Coherent walk", "ident", "MMFR3", "Coherent walk" },
+    { 1, 6, MS_SYSREG_MMFR3, NS_PRIVILEGE_LEVEL_1, 24, 4, "Cached memory size", "ident", "MMFR3", "Cached memory size" },
+    { 1, 7, MS_SYSREG_MMFR3, NS_PRIVILEGE_LEVEL_1, 28, 4, "Supersection support", "ident", "MMFR3", "Supersection support" },
+    
+    { 1, 0, MS_SYSREG_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { 1, 1, MS_SYSREG_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "AC2", "ident", "MMFR4", "Extension of ACTLR/HACTLR into register ACTLR2/HACTLR2" },
+    { 1, 2, MS_SYSREG_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { 1, 3, MS_SYSREG_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { 1, 4, MS_SYSREG_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { 1, 5, MS_SYSREG_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { 1, 6, MS_SYSREG_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    { 1, 7, MS_SYSREG_MMFR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "MMFR4", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "PARange", "ident", "AA64MMFR0", "Physical address range supported" },
+    { 1, 1, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "ASIDBits", "ident", "AA64MMFR0", "Number of ASID bits supported" },
+    { 1, 2, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "BigEnd", "ident", "AA64MMFR0", "Mixed-endian configuration support" },
+    { 1, 3, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "SNSMem", "ident", "AA64MMFR0", "Secure versus non-secure memory distinction" },
+    { 1, 4, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "BigEndEL0", "ident", "AA64MMFR0", "Mixed-endian support at EL0 only" },
+    { 1, 5, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "TGran16", "ident", "AA64MMFR0", "Support for 16KB memory translation granule size" },
+    { 1, 6, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "TGran64", "ident", "AA64MMFR0", "Support for 64KB memory translation granule size" },
+    { 1, 7, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "TGran4", "ident", "AA64MMFR0", "Support for 4KB memory translation granule size" },
+    { 1, 8, MS_SYSREG_AA64MMFR0, NS_PRIVILEGE_LEVEL_1, 32, 32, "Reserved", "ident", "AA64MMFR0", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_AA64MMFR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reserved", "ident", "AA64MMFR1", "Reserved" },
+        
+    { 1, 0, MS_SYSREG_ISAR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Swap_instrs", "ident", "ISAR0", "Swap_instrs" },
+    { 1, 1, MS_SYSREG_ISAR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "BitCount_instrs", "ident", "ISAR0", "BitCount_instrs" },
+    { 1, 2, MS_SYSREG_ISAR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Bitfield_instrs", "ident", "ISAR0", "Bitfield_instrs" },
+    { 1, 3, MS_SYSREG_ISAR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "CmpBranch_instrs", "ident", "ISAR0", "Compare and Branch instructions" },
+    { 1, 4, MS_SYSREG_ISAR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Coproc_instrs", "ident", "ISAR0", "Coprocessor instructions" },
+    { 1, 5, MS_SYSREG_ISAR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Debug_instrs", "ident", "ISAR0", "Debug instructions" },
+    { 1, 6, MS_SYSREG_ISAR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Divide_instrs", "ident", "ISAR0", "Divide instructions" },
+    { 1, 7, MS_SYSREG_ISAR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "Reserved", "ident", "ISAR0", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_ISAR1, NS_PRIVILEGE_LEVEL_1, 0, 4, "Ending_instrs", "ident", "ISAR1", "Endian instructions" },
+    { 1, 1, MS_SYSREG_ISAR1, NS_PRIVILEGE_LEVEL_1, 4, 4, "Except_instrs", "ident", "ISAR1", "Exception-handling instructions" },
+    { 1, 2, MS_SYSREG_ISAR1, NS_PRIVILEGE_LEVEL_1, 8, 4, "Except_AR_instrs", "ident", "ISAR1", "A & R profile exception-handling instructions" },
+    { 1, 3, MS_SYSREG_ISAR1, NS_PRIVILEGE_LEVEL_1, 12, 4, "Extend_instrs", "ident", "ISAR1", "Extend instructions" },
+    { 1, 4, MS_SYSREG_ISAR1, NS_PRIVILEGE_LEVEL_1, 16, 4, "IfThen_instrs", "ident", "ISAR1", "If-Then instructions in Thumb" },
+    { 1, 5, MS_SYSREG_ISAR1, NS_PRIVILEGE_LEVEL_1, 20, 4, "Immediate_instrs", "ident", "ISAR1", "Data processing instructions on long immediates" },
+    { 1, 6, MS_SYSREG_ISAR1, NS_PRIVILEGE_LEVEL_1, 24, 4, "Interwork_instrs", "ident", "ISAR1", "Interworking instructions" },
+    { 1, 7, MS_SYSREG_ISAR1, NS_PRIVILEGE_LEVEL_1, 28, 4, "Jazelle_instrs", "ident", "ISAR1", "Jazelle extension instructions" },
+        
+    { 1, 0, MS_SYSREG_ISAR2, NS_PRIVILEGE_LEVEL_1, 0, 4, "LoadStore_instrs", "ident", "ISAR2", "Additional load/store instructions" },
+    { 1, 1, MS_SYSREG_ISAR2, NS_PRIVILEGE_LEVEL_1, 4, 4, "MemHint_instrs", "ident", "ISAR2", "Memory Hint instructions" },
+    { 1, 2, MS_SYSREG_ISAR2, NS_PRIVILEGE_LEVEL_1, 8, 4, "MultiAccessInt_instrs", "ident", "ISAR2", "Interruptible multi-access instructions" },
+    { 1, 3, MS_SYSREG_ISAR2, NS_PRIVILEGE_LEVEL_1, 12, 4, "Mult_instrs", "ident", "ISAR2", "Additional multiply instructions" },
+    { 1, 4, MS_SYSREG_ISAR2, NS_PRIVILEGE_LEVEL_1, 16, 4, "MultS_instrs", "ident", "ISAR2", "Advanced signed Multiply instructions" },
+    { 1, 5, MS_SYSREG_ISAR2, NS_PRIVILEGE_LEVEL_1, 20, 4, "MultU_instrs", "ident", "ISAR2", "Advanced unsigned Multiply instructions" },
+    { 1, 6, MS_SYSREG_ISAR2, NS_PRIVILEGE_LEVEL_1, 24, 4, "PSR_AR_instrs", "ident", "ISAR2", "Instructions to manipulate PSR" },
+    { 1, 7, MS_SYSREG_ISAR2, NS_PRIVILEGE_LEVEL_1, 28, 4, "Reversal_instrs", "ident", "ISAR2", "Implemented Reversal instructions" },
+    
+    { 1, 0, MS_SYSREG_ISAR3, NS_PRIVILEGE_LEVEL_1, 0, 4, "Saturate_instrs", "ident", "ISAR3", "Implemented Saturate instructions" },
+    { 1, 1, MS_SYSREG_ISAR3, NS_PRIVILEGE_LEVEL_1, 4, 4, "SIMD_instrs", "ident", "ISAR3", "Implemented SIMD instructions" },
+    { 1, 2, MS_SYSREG_ISAR3, NS_PRIVILEGE_LEVEL_1, 8, 4, "SVC_instrs", "ident", "ISAR3", "Implemented SVC instructions" },
+    { 1, 3, MS_SYSREG_ISAR3, NS_PRIVILEGE_LEVEL_1, 12, 4, "SynchPrim_instrs", "ident", "ISAR3", " Synchronization Primitive instructions" },
+    { 1, 4, MS_SYSREG_ISAR3, NS_PRIVILEGE_LEVEL_1, 16, 4, "TabBranch_instrs", "ident", "ISAR3", "Table Branch instructions in Thumb" },
+    { 1, 5, MS_SYSREG_ISAR3, NS_PRIVILEGE_LEVEL_1, 20, 4, "ThumbCopy_instrs", "ident", "ISAR3", "Thumb non-flag setting MOV instructions" },
+    { 1, 6, MS_SYSREG_ISAR3, NS_PRIVILEGE_LEVEL_1, 24, 4, "TrueNOP_instrs", "ident", "ISAR3", "Implemented True NOP instructions" },
+    { 1, 7, MS_SYSREG_ISAR3, NS_PRIVILEGE_LEVEL_1, 28, 4, "ThumbEE_extn_instrs", "ident", "ISAR3", "Thumb Execution Environment Extension instructions" },
+    
+    { 1, 0, MS_SYSREG_ISAR4, NS_PRIVILEGE_LEVEL_1, 0, 4, "Unpriv_instrs", "ident", "ISAR4", "Implemented Unprivileged instructions" },
+    { 1, 1, MS_SYSREG_ISAR4, NS_PRIVILEGE_LEVEL_1, 4, 4, "WithShifts_instrs", "ident", "ISAR4", "Support for instructions with shifts" },
+    { 1, 2, MS_SYSREG_ISAR4, NS_PRIVILEGE_LEVEL_1, 8, 4, "Writeback_instrs", "ident", "ISAR4", "Writeback addressing modes" },
+    { 1, 3, MS_SYSREG_ISAR4, NS_PRIVILEGE_LEVEL_1, 12, 4, "SMC_instrs", "ident", "ISAR4", "SMC instructions" },
+    { 1, 4, MS_SYSREG_ISAR4, NS_PRIVILEGE_LEVEL_1, 16, 4, "Barrier_instrs", "ident", "ISAR4", "Barrier instructions" },
+    { 1, 5, MS_SYSREG_ISAR4, NS_PRIVILEGE_LEVEL_1, 20, 4, "SynchPrim_instrs", "ident", "ISAR4", "Implemented Synchronization Primitive instructions" },
+    { 1, 6, MS_SYSREG_ISAR4, NS_PRIVILEGE_LEVEL_1, 24, 4, "PSR_M_instrs", "ident", "ISAR4", "M profile instructions to modify PSR" },
+    { 1, 7, MS_SYSREG_ISAR4, NS_PRIVILEGE_LEVEL_1, 28, 4, "SWP_frac", "ident", "ISAR4", "Bus locking on SWP or SWPB" },
+    
+    { 1, 0, MS_SYSREG_ISAR5, NS_PRIVILEGE_LEVEL_1, 0, 4, "SEVL", "ident", "ISAR5", "Indicates that SEVL is implemented in AArch32" },
+    { 1, 1, MS_SYSREG_ISAR5, NS_PRIVILEGE_LEVEL_1, 4, 4, "AES", "ident", "ISAR5", "AES implemented in AArch32" },
+    { 1, 2, MS_SYSREG_ISAR5, NS_PRIVILEGE_LEVEL_1, 8, 4, "SHA1", "ident", "ISAR5", "SHA1 implemented in AArch32" },
+    { 1, 3, MS_SYSREG_ISAR5, NS_PRIVILEGE_LEVEL_1, 12, 4, "SHA2", "ident", "ISAR5", "SHA2 implemented in AArch32" },
+    { 1, 4, MS_SYSREG_ISAR5, NS_PRIVILEGE_LEVEL_1, 16, 4, "CRC32", "ident", "ISAR5", "CRC32 implemented in AArch32" },
+    { 1, 5, MS_SYSREG_ISAR5, NS_PRIVILEGE_LEVEL_1, 20, 12, "Reserved", "ident", "ISAR5", "Reserved" },
+    
+    
+    { 1, 0, MS_SYSREG_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "Reserved", "ident", "AA64ISAR0", "Reserved" },
+    { 1, 1, MS_SYSREG_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "AES", "ident", "AA64ISAR0", "AES instructions implemented" },
+    { 1, 2, MS_SYSREG_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "SHA1", "ident", "AA64ISAR0", "SHA1 instructions implemented" },
+    { 1, 3, MS_SYSREG_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "SHA2", "ident", "AA64ISAR0", "SHA2 instructions implemented" },
+    { 1, 4, MS_SYSREG_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "CRC32", "ident", "AA64ISAR0", "CRC instructions implemented" },
+    { 1, 5, MS_SYSREG_AA64ISAR0, NS_PRIVILEGE_LEVEL_1, 20, 44, "Reserved", "ident", "AA64ISAR0", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_AA64ISAR1, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reserved", "ident", "AA64ISAR1", "Reserved" },
+    
+    
+    { 1, 0, MS_SYSREG_REVIDR, NS_PRIVILEGE_LEVEL_1, 0, 32, "Reserved", "ident", "REVIDR", "Implementation Defined" },
+    
+    { 1, 0, MS_SYSREG_TLBTR, NS_PRIVILEGE_LEVEL_1, 0, 1, "nU", "ident", "TLBTR", "[0] Not Unified TLB" },
+    { 1, 1, MS_SYSREG_TLBTR, NS_PRIVILEGE_LEVEL_1, 1, 31, "Implementation Defined", "ident", "TLBTR", "Implementation Defined" },
+    
+    { 1, 0, MS_SYSREG_CCSIDR, NS_PRIVILEGE_LEVEL_1, 0, 3, "LineSize", "ident", "CCSIDR", "Number of words in cache line" },
+    { 1, 1, MS_SYSREG_CCSIDR, NS_PRIVILEGE_LEVEL_1, 3, 10, "Associativity", "ident", "CCSIDR", "Associativity of cache" },
+    { 1, 2, MS_SYSREG_CCSIDR, NS_PRIVILEGE_LEVEL_1, 13, 15, "NumSets", "ident", "CCSIDR", "Number of sets in cache" },
+    { 1, 3, MS_SYSREG_CCSIDR, NS_PRIVILEGE_LEVEL_1, 28, 1, "WA", "ident", "CCSIDR", "Write allocation" },
+    { 1, 4, MS_SYSREG_CCSIDR, NS_PRIVILEGE_LEVEL_1, 29, 1, "RA", "ident", "CCSIDR", "Read allocation" },
+    { 1, 5, MS_SYSREG_CCSIDR, NS_PRIVILEGE_LEVEL_1, 30, 1, "WB", "ident", "CCSIDR", "Write back" },
+    { 1, 6, MS_SYSREG_CCSIDR, NS_PRIVILEGE_LEVEL_1, 31, 1, "WT", "ident", "CCSIDR", "Write through" },
+    
+    { 1, 0, MS_SYSREG_TCMTR, NS_PRIVILEGE_LEVEL_1, 0, 29, "Implementation Defined", "ident", "TCMTR", "Implementation Defined" },
+    { 1, 1, MS_SYSREG_TCMTR, NS_PRIVILEGE_LEVEL_1, 29, 3, "Format", "ident", "TCMTR", "Implemented TCMTR format" },
+        
+    { 1, 0, MS_SYSREG_AIDR, NS_PRIVILEGE_LEVEL_1, 0, 32, "Implementation Defined", "ident", "AIDR", "Implementation Defined" },
+    
+    { 1, 0, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 0, 3, "Ctype1", "ident", "CLIDR", "Cache type" },
+    { 1, 1, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 3, 3, "Ctype2", "ident", "CLIDR", "Cache type" },
+    { 1, 2, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 6, 3, "Ctype3", "ident", "CLIDR", "Cache type" },
+    { 1, 3, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 9, 3, "Ctype4", "ident", "CLIDR", " Cache type" },
+    { 1, 4, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 12, 3, "Ctype5", "ident", "CLIDR", "Cache type" },
+    { 1, 5, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 15, 3, "Ctype6", "ident", "CLIDR", "Cache type" },
+    { 1, 6, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 18, 3, "Ctype7", "ident", "CLIDR", "Cache type" },
+    { 1, 7, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 21, 3, "LoUIS", "ident", "CLIDR", "Level of Unification Inner Shareable" },
+    { 1, 8, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 24, 3, "LoC", "ident", "CLIDR", "Level of Coherence" },
+    { 1, 9, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 27, 3, "LoUU", "ident", "CLIDR", "Level of Unification Uniprocessor" },
+    { 1, 10, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 30, 2, "Reserved", "ident", "CLIDR", "Reserved" },
+    { 1, 11, MS_SYSREG_CLIDR, NS_PRIVILEGE_LEVEL_1, 32, 32, "Reserved", "ident", "CLIDR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_CSSELR, NS_PRIVILEGE_LEVEL_1, 0, 1, "InD", "ident", "CSSELR", "Instruction not Data bit" },
+    { 1, 1, MS_SYSREG_CSSELR, NS_PRIVILEGE_LEVEL_1, 1, 3, "Level", "ident", "CSSELR", "Level" },
+    { 1, 2, MS_SYSREG_CSSELR, NS_PRIVILEGE_LEVEL_1, 4, 28, "Reserved", "ident", "CSSELR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_CTR, NS_PRIVILEGE_LEVEL_0, 0, 4, "IminLine", "ident", "CTR", "IminLine" },
+    { 1, 1, MS_SYSREG_CTR, NS_PRIVILEGE_LEVEL_0, 4, 10, "Reserved", "ident", "CTR", "Reserved" },
+    { 1, 2, MS_SYSREG_CTR, NS_PRIVILEGE_LEVEL_0, 14, 2, "L1Ip", "ident", "CTR", "Level 1 instruction cache policy" },
+    { 1, 3, MS_SYSREG_CTR, NS_PRIVILEGE_LEVEL_0, 16, 4, "DminLine", "ident", "CTR", "DminLine" },
+    { 1, 4, MS_SYSREG_CTR, NS_PRIVILEGE_LEVEL_0, 20, 4, "ERG", "ident", "CTR", "Exclusives Reservation Granule" },
+    { 1, 5, MS_SYSREG_CTR, NS_PRIVILEGE_LEVEL_0, 24, 4, "CWG", "ident", "CTR", "Cache Write-back Granule" },
+    { 1, 6, MS_SYSREG_CTR, NS_PRIVILEGE_LEVEL_0, 28, 3, "Reserved", "ident", "CTR", "Reserved" },
+    { 1, 7, MS_SYSREG_CTR, NS_PRIVILEGE_LEVEL_0, 31, 1, "Reserved", "ident", "CTR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_MIDR, NS_PRIVILEGE_LEVEL_1, 0, 4, "Revision", "ident", "MIDR", "Revision" },
+    { 1, 1, MS_SYSREG_MIDR, NS_PRIVILEGE_LEVEL_1, 4, 12, "Primary part number", "ident", "MIDR", "Primary part number" },
+    { 1, 2, MS_SYSREG_MIDR, NS_PRIVILEGE_LEVEL_1, 16, 4, "Architecture", "ident", "MIDR", "Architecture" },
+    { 1, 3, MS_SYSREG_MIDR, NS_PRIVILEGE_LEVEL_1, 20, 4, "Variant", "ident", "MIDR", "Variant" },
+    { 1, 4, MS_SYSREG_MIDR, NS_PRIVILEGE_LEVEL_1, 24, 8, "Implementer", "ident", "MIDR", "Implementer" },
+    
+    { 1, 0, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 0, 8, "Aff0", "ident", "MPIDR", "Affinity level 0" },
+    { 1, 1, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 8, 8, "Aff1", "ident", "MPIDR", "Affinity level 1" },
+    { 1, 2, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 16, 8, "Aff2", "ident", "MPIDR", "Affinity level 2" },
+    { 1, 3, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 24, 1, "MT", "ident", "MPIDR", "Affinity dependence" },
+    { 1, 4, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 25, 5, "Reserved", "ident", "MPIDR", "Reserved" },
+    { 1, 5, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 30, 1, "U", "ident", "MPIDR", "Uniprocessor system" },
+    { 1, 6, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 31, 1, "Reserved", "ident", "MPIDR", "Reserved" },       
+    { 1, 7, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 32, 8, "Aff3", "ident", "MPIDR", "Affinity level 3" },      
+    { 1, 8, MS_SYSREG_MPIDR, NS_PRIVILEGE_LEVEL_1, 40, 24, "Reserved", "ident", "MPIDR", "Reserved" },      
+
+    /* Floating Point Bitfields */
+    { 1, 0, MS_SYSREG_FPSID, NS_PRIVILEGE_LEVEL_1, 0, 4, "Revision", "fp", "FPSID", "Revision number" },
+    { 1, 1, MS_SYSREG_FPSID, NS_PRIVILEGE_LEVEL_1, 4, 4, "Variant", "fp", "FPSID", "Variant number" },
+    { 1, 2, MS_SYSREG_FPSID, NS_PRIVILEGE_LEVEL_1, 8, 8, "Part Number", "fp", "FPSID", "Part number" },
+    { 1, 3, MS_SYSREG_FPSID, NS_PRIVILEGE_LEVEL_1, 16, 6, "Subarchitecture", "fp", "FPSID", "Subarchitecture version number" },
+    { 1, 4, MS_SYSREG_FPSID, NS_PRIVILEGE_LEVEL_1, 23, 1, "SW", "fp", "FPSID", "Software emulation" },
+    { 1, 5, MS_SYSREG_FPSID, NS_PRIVILEGE_LEVEL_1, 24, 8, "Implementer", "fp", "FPSID", "Implementer" },
+    
+    { 1, 0, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 0, 1, "IOC", "fp", "FPSCR", "Invalid Operation cumulative exception" },  
+    { 1, 1, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 1, 1, "DZC", "fp", "FPSCR", "Division by Zero cumulative exception" },   
+    { 1, 2, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 2, 1, "OFC", "fp", "FPSCR", "Overflow cumulative exception" },   
+    { 1, 3, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 3, 1, "UFC", "fp", "FPSCR", "Underflow cumulative exception" },  
+    { 1, 4, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 4, 1, "IXC", "fp", "FPSCR", "Inexact cumulative exception" },
+    { 1, 5, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 5, 2, "Reserved", "fp", "FPSCR", "Reserved" },
+    { 1, 6, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 7, 1, "IDC", "fp", "FPSCR", "Input Denormal cumulative exception" },
+    { 1, 7, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 8, 1, "IOE", "fp", "FPSCR", "Invalid Operation exception trap enable" },
+    { 1, 8, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 9, 1, "DZE", "fp", "FPSCR", "Division by Zero exception trap enable" },
+    { 1, 9, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 10, 1, "OFE", "fp", "FPSCR", "Overflow exception trap enable" },
+    { 1, 10, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 11, 1, "UFE", "fp", "FPSCR", "Underflow exception trap enable" },
+    { 1, 11, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 12, 1, "IXE", "fp", "FPSCR", "Inexact exception trap enable" },
+    { 1, 12, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 13, 2, "Reserved", "fp", "FPSCR", "Reserved" },
+    { 1, 13, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 15, 1, "IDE", "fp", "FPSCR", "Input Denormal exception trap enable" },
+    { 1, 14, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 16, 3, "LEN", "fp", "FPSCR", "ARM deprecated field" },
+    { 1, 15, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 19, 1, "Reserved", "fp", "FPSCR", "Reserved" },
+    { 1, 16, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 20, 2, "Stride", "fp", "FPSCR", "ARM deprecated field" },
+    { 1, 17, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 22, 2, "RMode", "fp", "FPSCR", "Rounding Mode control" },
+    { 1, 18, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 24, 1, "FZ", "fp", "FPSCR", "Flush-to-zero" },
+    { 1, 19, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 25, 1, "DN", "fp", "FPSCR", "Default NaN" },
+    { 1, 20, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 26, 1, "AHP", "fp", "FPSCR", "Alternative half-precision" },
+    { 1, 21, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 27, 1, "QC", "fp", "FPSCR", "Cumulative saturation bit" },
+    { 1, 22, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 28, 1, "V", "fp", "FPSCR", "Overflow condition flag" },
+    { 1, 23, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 29, 1, "C", "fp", "FPSCR", "Carry condition flag" },
+    { 1, 24, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 30, 1, "Z", "fp", "FPSCR", "Zero condition flag" },
+    { 1, 25, MS_SYSREG_FPSCR, NS_PRIVILEGE_LEVEL_1, 31, 1, "N", "fp", "FPSCR", "Negative condition flag" },
+    
+    { 1, 0, MS_SYSREG_FPEXC, NS_PRIVILEGE_LEVEL_1, 0, 29, "Implementation Defined", "fp", "FPEXC", "Subarchitecture defined" },
+    { 1, 1, MS_SYSREG_FPEXC, NS_PRIVILEGE_LEVEL_1, 30, 1, "EN", "fp", "FPEXC", "Global enable for Advanced SIMD and Floating-point Extensions" },
+    { 1, 2, MS_SYSREG_FPEXC, NS_PRIVILEGE_LEVEL_1, 31, 1, "EX", "fp", "FPEXC", "Extent of saved records for Advanced SIMD and Floating-point systems" },
+    
+    { 1, 0, MS_SYSREG_MVFR0, NS_PRIVILEGE_LEVEL_1, 0, 4, "A_SIMD registers", "fp", "MVFR0", "Support for Advanced SIMD register bank" },
+    { 1, 1, MS_SYSREG_MVFR0, NS_PRIVILEGE_LEVEL_1, 4, 4, "Single-precision", "fp", "MVFR0", "Support for Floating-point Extension single-precision operations" },
+    { 1, 2, MS_SYSREG_MVFR0, NS_PRIVILEGE_LEVEL_1, 8, 4, "Double-precision", "fp", "MVFR0", "Support for Floating-point Extension double-precision operations" },
+    { 1, 3, MS_SYSREG_MVFR0, NS_PRIVILEGE_LEVEL_1, 12, 4, "VFP exception exception trapping", "fp", "MVFR0", "VFP support for exception handling" },
+    { 1, 4, MS_SYSREG_MVFR0, NS_PRIVILEGE_LEVEL_1, 16, 4, "Divide", "fp", "MVFR0", "VFP divide support" },
+    { 1, 5, MS_SYSREG_MVFR0, NS_PRIVILEGE_LEVEL_1, 20, 4, "Square root", "fp", "MVFR0", "VFP square root support" },
+    { 1, 6, MS_SYSREG_MVFR0, NS_PRIVILEGE_LEVEL_1, 24, 4, "Short vectors", "fp", "MVFR0", "VFP short vector support" },
+    { 1, 7, MS_SYSREG_MVFR0, NS_PRIVILEGE_LEVEL_1, 28, 4, "VFP rounding modes", "fp", "MVFR0", "VFP rounding modes support" },
+    
+    { 1, 0, MS_SYSREG_MVFR1, NS_PRIVILEGE_LEVEL_1, 0, 4, "FtZ mode", "fp", "MVFR1", "Flush-to-zero only" },
+    { 1, 1, MS_SYSREG_MVFR1, NS_PRIVILEGE_LEVEL_1, 4, 4, "D_NaN", "fp", "MVFR1", "Default NaN only" },
+    { 1, 2, MS_SYSREG_MVFR1, NS_PRIVILEGE_LEVEL_1, 8, 4, "A_SIMD load/store", "fp", "MVFR1", "A_SIMD Load/store implementation" },
+    { 1, 3, MS_SYSREG_MVFR1, NS_PRIVILEGE_LEVEL_1, 12, 4, "A_SIMD integer", "fp", "MVFR1", "A_SIMD integer instructions" },
+    { 1, 4, MS_SYSREG_MVFR1, NS_PRIVILEGE_LEVEL_1, 16, 4, "A_SIMD SPFP", "fp", "MVFR1", "A_SIMD single-precision floating point conversion" },
+    { 1, 5, MS_SYSREG_MVFR1, NS_PRIVILEGE_LEVEL_1, 20, 4, "A_SIMD HPFP", "fp", "MVFR1", "A_SIMD half-precision floating point conversion" },
+    { 1, 6, MS_SYSREG_MVFR1, NS_PRIVILEGE_LEVEL_1, 24, 4, "VFP HPFP", "fp", "MVFR1", "Floating point implements half-precision floating-point conversion" },
+    { 1, 7, MS_SYSREG_MVFR1, NS_PRIVILEGE_LEVEL_1, 28, 4, "A_SIMD FMAC", "fp", "MVFR1", "FP or A_SIMD implements fused multiply accumulate" },
+    
+    { 1, 0, MS_SYSREG_MVFR2, NS_PRIVILEGE_LEVEL_1, 0, 4, "SIMDMisc", "fp", "MVFR2", "Support for miscellaneous Advanced SIMD features" },
+    { 1, 1, MS_SYSREG_MVFR2, NS_PRIVILEGE_LEVEL_1, 4, 4, "FPMisc", "fp", "MVFR2", "Support for miscellaneous VFP features" },
+    { 1, 2, MS_SYSREG_MVFR2, NS_PRIVILEGE_LEVEL_1, 8, 16, "Reserved", "fp", "MVFR2", "Reserved" },
+                
+    /* Security Extension Bitfields */
+    { 1, 0, MS_SYSREG_SCR, S_ALL, 0, 1, "NS", "secext", "SCR", "Non Secure Bit" },
+    { 1, 1, MS_SYSREG_SCR, S_ALL, 1, 1, "IRQ", "secext", "SCR", "IRQ Handler" },
+    { 1, 2, MS_SYSREG_SCR, S_ALL, 2, 1, "FIQ", "secext", "SCR", "FIQ Handler" },
+    { 1, 3, MS_SYSREG_SCR, S_ALL, 3, 1, "EA", "secext", "SCR", "External Abort Handler" },
+    { 1, 4, MS_SYSREG_SCR, S_ALL, 4, 1, "FW", "secext", "SCR", "F bit writeable" },
+    { 1, 5, MS_SYSREG_SCR, S_ALL, 5, 1, "AW", "secext", "SCR", "A bit writeable" },
+    { 1, 6, MS_SYSREG_SCR, S_ALL, 6, 1, "nET", "secext", "SCR", "Not Early Termination" },
+    { 1, 7, MS_SYSREG_SCR, S_ALL, 7, 1, "SCD", "secext", "SCR", "Secure Monitor Call disable" },
+    { 1, 8, MS_SYSREG_SCR, S_ALL, 8, 1, "HCE", "secext", "SCR", "HYP call enable" },
+    { 1, 9, MS_SYSREG_SCR, S_ALL, 9, 1, "SIF", "secext", "SCR", "Secure Instruction Fetch bit" },
+    { 1, 10, MS_SYSREG_SCR, S_ALL, 10, 22, "Reserved", "secext", "SCR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_ISR, NS_PRIVILEGE_LEVEL_1, 0, 6, "Reserved", "secext", "ISR", "Reserved" },
+    { 1, 1, MS_SYSREG_ISR, NS_PRIVILEGE_LEVEL_1, 6, 1, "F", "secext", "ISR", "FIQ pending bit" },
+    { 1, 2, MS_SYSREG_ISR, NS_PRIVILEGE_LEVEL_1, 7, 1, "I", "secext", "ISR", "IRQ pending bit" },
+    { 1, 3, MS_SYSREG_ISR, NS_PRIVILEGE_LEVEL_1, 8, 1, "A", "secext", "ISR", "External abort pending bit" },
+    { 1, 4, MS_SYSREG_ISR, NS_PRIVILEGE_LEVEL_1, 9, 23, "Reserved", "secext", "ISR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_SDER, S_ALL, 0, 1, "SUIDEN", "secext", "SDER", "Secure user invasive debug" },
+    { 1, 1, MS_SYSREG_SDER, S_ALL, 1, 1, "SUNIDEN", "secext", "SDER", "Secure user non-invasive debug" },
+    { 1, 2, MS_SYSREG_SDER, S_ALL, 2, 30, "Reserved", "secext", "SDER", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_VBAR, NS_PRIVILEGE_LEVEL_1, 0, 11, "Reserved", "secext", "VBAR", "Reserved" },
+    { 1, 1, MS_SYSREG_VBAR, NS_PRIVILEGE_LEVEL_1, 11, 53, "Vector Base Address", "secext", "VBAR", "Vector Base Address" },
+    
+    /* Debug Bitfields */
+    { 1, 0, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 0, 4, "Revision", "debug", "DBGDIDR", "Revision" },
+    { 1, 1, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 4, 4, "Variant", "debug", "DBGDIDR", "Variant" },
+    { 1, 2, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 8, 4, "Reserved", "debug", "DBGDIDR", "Reserved" },
+    { 1, 3, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 12, 1, "SE_imp", "debug", "DBGDIDR", "Security Extensions Implemented" },
+    { 1, 4, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 13, 1, "PCSR_imp", "debug", "DBGDIDR", "Program Counter Sampling Register" },
+    { 1, 5, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 14, 1, "nSUHD_imp", "debug", "DBGDIDR", "Secure User Halting Debug" },
+    { 1, 6, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 15, 1, "DEVID_imp", "debug", "DBGDIDR", "Debug Device ID" },
+    { 1, 7, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 16, 4, "Version", "debug", "DBGDIDR", "Version" },
+    { 1, 8, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 20, 4, "CTX_CMP", "debug", "DBGDIDR", "Context Compare Breakpoints" },
+    { 1, 9, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 24, 4, "BRP", "debug", "DBGDIDR", "Number of breakpoints" },
+    { 1, 10, MS_SYSREG_DBGDIDR, NS_PRIVILEGE_LEVEL_1, 28, 4, "WRP", "debug", "DBGDIDR", "Number of Watchpoints Implemented" },
+    
+    { 1, 0, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 0, 1, "NSE", "debug", "DBGAUTHSTATUS", "Non-secure invasive debug" },
+    { 1, 1, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 1, 1, "NSI", "debug", "DBGAUTHSTATUS", " Non-secure invasive debug features" },
+    { 1, 2, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 2, 1, "NSNE", "debug", "DBGAUTHSTATUS", "Non-secure non-invasive debug" },
+    { 1, 3, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 3, 1, "NSNI", "debug", "DBGAUTHSTATUS", "Non-secure non-invasive debug" },
+    { 1, 4, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 4, 1, "SE", "debug", "DBGAUTHSTATUS", "Secure invasive" },
+    { 1, 5, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 5, 1, "SI", "debug", "DBGAUTHSTATUS", "Secure invasive features" },
+    { 1, 6, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 6, 1, "SNE", "debug", "DBGAUTHSTATUS", "Secure non-invasive" },
+    { 1, 7, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 7, 1, "SNI", "debug", "DBGAUTHSTATUS", "Secure non-invasive features" },
+    { 1, 8, MS_SYSREG_DBGAUTHSTATUS, NS_PRIVILEGE_LEVEL_1, 8, 24, "Reserved", "debug", "DBGAUTHSTATUS", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_DBGDRAR, NS_PRIVILEGE_LEVEL_1, 0, 2, "Valid", "debug", "DBGDRAR", "ROM table address is valid" },
+    { 1, 1, MS_SYSREG_DBGDRAR, NS_PRIVILEGE_LEVEL_1, 2, 10, "Reserved", "debug", "DBGDRAR", "Reserved" },
+    { 1, 2, MS_SYSREG_DBGDRAR, NS_PRIVILEGE_LEVEL_1, 12, 36, "ROMADDR", "debug", "DBGDRAR", "Bits [47:12] of component physical address. [11:0] are zero." },
+    { 1, 3, MS_SYSREG_DBGDRAR, NS_PRIVILEGE_LEVEL_1, 48, 16, "Reserved", "debug", "DBGDRAR", "Reserved" },      
+    
+    { 1, 0, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 0, 1, "SS", "debug", "DBGDSCR", "Enable software step" },
+    { 1, 1, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 1, 5, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { 1, 2, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 6, 1, "ERR", "debug", "DBGDSCR", "Used for save/restore of EDSCR.ERR" },
+    { 1, 3, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 7, 5, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { 1, 4, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 12, 1, "TDCC", "debug", "DBGDSCR", "Trap user mode (EL0) access to the DCC registers to EL1" },
+    { 1, 5, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 13, 1, "KDE", "debug", "DBGDSCR", "Local (kernel) debug enable" },
+    { 1, 6, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 14, 1, "HDE", "debug", "DBGDSCR", "Used for save/restore of EDSCR.HDE" },
+    { 1, 7, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 15, 1, "MDE", "debug", "DBGDSCR", "Monitor debug events" },
+    { 1, 8, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 16, 3, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { 1, 9, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 19, 2, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { 1, 10, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 21, 1, "TDA", "debug", "DBGDSCR", "Used for save/restore of EDSCR.TDA" },
+    { 1, 11, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 22, 2, "INTdis", "debug", "DBGDSCR", "Used for save/restore of EDSCR.INTdis" },
+    { 1, 12, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 24, 2, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { 1, 13, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 26, 1, "TXU", "debug", "DBGDSCR", "Used for save/restore of EDSCR.TXU" },
+    { 1, 14, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 27, 1, "RXO", "debug", "DBGDSCR", "Used for save/restore of EDSCR.RXO" },
+    { 1, 15, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 28, 1, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    { 1, 16, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 29, 1, "TXfull", "debug", "DBGDSCR", "Used for save/restore of EDSCR.TXfull" },
+    { 1, 17, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 30, 1, "RXfull", "debug", "DBGDSCR", "Used for save/restore of EDSCR.RXfull" },
+    { 1, 18, MS_SYSREG_DBGDSCR, NS_PRIVILEGE_LEVEL_1, 31, 1, "Reserved", "debug", "DBGDSCR", "Reserved" },
+    
+    /* Virtual Memory Bitfields */      
+    { 1, 0, MS_SYSREG_MAIR, NS_PRIVILEGE_LEVEL_1, 0, 8, "Attr0", "virtmem", "MAIR", "Memory attribute encoding" },
+    { 1, 1, MS_SYSREG_MAIR, NS_PRIVILEGE_LEVEL_1, 8, 8, "Attr1", "virtmem", "MAIR", "Memory attribute encoding" },
+    { 1, 2, MS_SYSREG_MAIR, NS_PRIVILEGE_LEVEL_1, 16, 8, "Attr2", "virtmem", "MAIR", "Memory attribute encoding" },
+    { 1, 3, MS_SYSREG_MAIR, NS_PRIVILEGE_LEVEL_1, 24, 8, "Attr3", "virtmem", "MAIR", "Memory attribute encoding" },    
+    { 1, 4, MS_SYSREG_MAIR, NS_PRIVILEGE_LEVEL_1, 32, 8, "Attr4", "virtmem", "MAIR", "Memory attribute encoding" },
+    { 1, 5, MS_SYSREG_MAIR, NS_PRIVILEGE_LEVEL_1, 40, 8, "Attr5", "virtmem", "MAIR", "Memory attribute encoding" },
+    { 1, 6, MS_SYSREG_MAIR, NS_PRIVILEGE_LEVEL_1, 48, 8, "Attr6", "virtmem", "MAIR", "Memory attribute encoding" },
+    { 1, 7, MS_SYSREG_MAIR, NS_PRIVILEGE_LEVEL_1, 56, 8, "Attr7", "virtmem", "MAIR", "Memory attribute encoding" },
+    
+    { 1, 0, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 0, 1, "M", "virtmem", "SCTLR", "MMU Enable" },
+    { 1, 1, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 1, 1, "A", "virtmem", "SCTLR", "Alignment check enable" },
+    { 1, 2, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 2, 1, "C", "virtmem", "SCTLR", "Cache enable" },
+    { 1, 3, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 3, 1, "SA", "virtmem", "SCTLR", "Stack alignment check enable" },
+    { 1, 4, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 4, 1, "SA0", "virtmem", "SCTLR", "Stack alignment check enable for EL0" },
+    { 1, 5, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 5, 1, "CP15BEN", "virtmem", "SCTLR", "CP15 barrier enable" },
+    { 1, 6, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 6, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 7, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 7, 1, "ITD", "virtmem", "SCTLR", "Disables some uses of IT instructions at EL0 using AArch32" },
+    { 1, 8, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 8, 1, "SED", "virtmem", "SCTLR", "Disables the SETEND instruction at EL0 using AArch32" },
+    { 1, 9, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 9, 1, "UMA", "virtmem", "SCTLR", "Traps EL0 execution of MSR and MRS instructions that access PSTATE" },
+    { 1, 10, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 10, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 11, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 11, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 12, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 12, 1, "I", "virtmem", "SCTLR", "Instruction access Cacheability control" },
+    { 1, 13, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 13, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 14, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 14, 1, "DZE", "virtmem", "SCTLR", "Traps EL0 execution of DC ZVA instructions to EL1" },
+    { 1, 15, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 15, 1, "UCT", "virtmem", "SCTLR", "Traps EL0 access to the CTR_EL0 register to EL1" },
+    { 1, 16, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 16, 1, "NTWI", "virtmem", "SCTLR", "Traps EL0 execution of WFI instructions to EL1" },
+    { 1, 17, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 17, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 18, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 18, 1, "NTWE", "virtmem", "SCTLR", "Traps EL0 execution of WFE instructions to EL1" },
+    { 1, 19, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 19, 1, "WXN", "virtmem", "SCTLR", "Write permission implies XN (Execute Never) at EL0/1" },
+    { 1, 20, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 20, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 21, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 21, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 22, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 22, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 23, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 24, 1, "E0E", "virtmem", "SCTLR", "Endianess of data access at EL0" },
+    { 1, 24, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 25, 1, "EE", "virtmem", "SCTLR", "Endianess of data at EL1 and translation table walk" },
+    { 1, 25, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 26, 1, "UCI", "virtmem", "SCTLR", "Traps EL0 cache maintenance instructions to EL1" },
+    { 1, 26, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 27, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 27, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 28, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 28, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 30, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_CONTEXTIDR, NS_PRIVILEGE_LEVEL_1, 0, 32, "PROCID", "virtmem", "CONTEXTIDR", "PROCID" },
+    { 1, 1, MS_SYSREG_CONTEXTIDR, NS_PRIVILEGE_LEVEL_1, 0, 8, "ASID", "virtmem", "CONTEXTIDR", "ASID" },
+    { 1, 2, MS_SYSREG_CONTEXTIDR, NS_PRIVILEGE_LEVEL_1, 8, 24, "PROCID", "virtmem", "CONTEXTIDR", "PROCID" }, 
+    
+    { 1, 0, MS_SYSREG_AMAIR, NS_PRIVILEGE_LEVEL_1, 0, 64, "Implementation Defined", "virtmem", "AMAIR", "Implementation Defined" },  
+    
+    { 1, 0, MS_SYSREG_DCZID, NS_PRIVILEGE_LEVEL_0, 0, 4, "BS", "virtmem", "DCZID", "Block size" },
+    { 1, 1, MS_SYSREG_DCZID, NS_PRIVILEGE_LEVEL_0, 4, 1, "DZP", "virtmem", "DCZID", "Data Zero prohibited" },
+    { 1, 2, MS_SYSREG_DCZID, NS_PRIVILEGE_LEVEL_0, 5, 27, "Reserved", "virtmem", "DCZID", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 0, 6, "T0SZ", "virtmem", "TCR", "Size offset of memory region addressed by TTBR0_EL1" },
+    { 1, 1, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 6, 1, "Reserved", "virtmem", "TCR", "Reserved" },
+    { 1, 2, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 7, 1, "EPD0", "virtmem", "TCR", "Translation table walk disable for translations using TTBR0_EL1" },
+    { 1, 3, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 8, 2, "IRGN0", "virtmem", "TCR", "Inner cacheability attribute" },
+    { 1, 4, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 10, 2, "ORGN0", "virtmem", "TCR", "Outer cacheability attribute" },
+    { 1, 5, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 12, 2, "SH0", "virtmem", "TCR", "Shareability attribute" },
+    { 1, 6, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 14, 2, "TG0", "virtmem", "TCR", "Granule size for translation table base address register" },
+    { 1, 7, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 16, 6, "T1SZ", "virtmem", "TCR", "Size offset of the memory region addressed by TTBR1_EL1" },
+    { 1, 8, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 22, 1, "A1", "virtmem", "TCR", "Selects whether TTBR0_EL1 or TTBR1_EL1 defines the ASID" },
+    { 1, 9, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 23, 1, "EPD1", "virtmem", "TCR", "Translation table walk disable for translations using TTBR1_EL1" },
+    { 1, 10, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 24, 2, "IRGN1", "virtmem", "TCR", "Inner cacheability attribute for memory associated with translation table walks using TTBR1_EL1" },
+    { 1, 11, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 26, 2, "ORGN1", "virtmem", "TCR", "Outer cacheability attribute for memory associated with translation table walks using TTBR1_EL1" },
+    { 1, 12, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 28, 2, "SH1", "virtmem", "TCR", "Shareability attribute" },
+    { 1, 13, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 30, 2, "TG1", "virtmem", "TCR", "TTBR1_EL1 Granule size" },
+    { 1, 14, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 32, 3, "IPS", "virtmem", "TCR", "Intermediate Physical address size" },
+    { 1, 15, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 35, 1, "Reserved", "virtmem", "TCR", "Reserved" },
+    { 1, 16, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 36, 1, "AS", "virtmem", "TCR", "ASID size" },
+    { 1, 17, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 37, 1, "TBI0", "virtmem", "TCR", "Top byte ignored for TTBR0_EL1" },
+    { 1, 18, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 38, 1, "TBI1", "virtmem", "TCR", "Top byte ignored for TTBR1_EL1" },
+    { 1, 19, MS_SYSREG_TTBCR, NS_PRIVILEGE_LEVEL_1, 39, 25, "Reserved", "virtmem", "TCR", "Reserved" },
+        
+    { 1, 0, MS_SYSREG_TTBR1, NS_PRIVILEGE_LEVEL_1, 0, 48, "BADDR", "virtmem", "TTBR0", "Translation table base address" },        
+    { 1, 1, MS_SYSREG_TTBR1, NS_PRIVILEGE_LEVEL_1, 48, 16, "ASID", "virtmem", "TTBR0", "ASID for translation table base address" },        
+    
+    { 1, 0, MS_SYSREG_TTBR0, NS_PRIVILEGE_LEVEL_1, 0, 48, "BADDR", "virtmem", "TTBR1", "Translation table base address" },        
+    { 1, 1, MS_SYSREG_TTBR0, NS_PRIVILEGE_LEVEL_1, 48, 16, "ASID", "virtmem", "TTBR1", "ASID for translation table base address" },            
+                
+    /* Performance Monitor Bitfields */ 
+    { 1, 0, MS_SYSREG_PMCR, NS_ALL, 0, 1, "E", "perfmon", "PMCR", "All counters enable" },
+    { 1, 1, MS_SYSREG_PMCR, NS_ALL, 1, 1, "P", "perfmon", "PMCR", "Event counter reset" },
+    { 1, 2, MS_SYSREG_PMCR, NS_ALL, 2, 1, "C", "perfmon", "PMCR", "Cycle counter reset" },
+    { 1, 3, MS_SYSREG_PMCR, NS_ALL, 3, 1, "D", "perfmon", "PMCR", "Cycle counter clock divider" },
+    { 1, 4, MS_SYSREG_PMCR, NS_ALL, 4, 1, "X", "perfmon", "PMCR", "Export enable" },
+    { 1, 5, MS_SYSREG_PMCR, NS_ALL, 5, 1, "DP", "perfmon", "PMCR", "Disable PMCCNTR when event counting is prohibited" },
+    { 1, 6, MS_SYSREG_PMCR, NS_ALL, 6, 1, "LC", "perfmon", "PMCR", "Long cycle counter enable" },
+    { 1, 7, MS_SYSREG_PMCR, NS_ALL, 7, 4, "Rerverced", "perfmon", "PMCR", "Reserved" },
+    { 1, 8, MS_SYSREG_PMCR, NS_ALL, 11, 5, "N", "perfmon", "PMCR", "Number of event counters" },
+    { 1, 9, MS_SYSREG_PMCR, NS_ALL, 16, 8, "IDCODE", "perfmon", "PMCR", "Identification Code" },
+    { 1, 10, MS_SYSREG_PMCR, NS_ALL, 24, 8, "Implementation Defined", "perfmon", "PMCR", "Implementer Code" },
+    
+    { 1, 0, MS_SYSREG_PMCCFILTR, NS_ALL, 0, 26, "Reserved", "perfmon", "PMCCFILTR", "Reserved" },
+    { 1, 1, MS_SYSREG_PMCCFILTR, NS_ALL, 26, 1, "M", "perfmon", "PMCCFILTR", "Secure EL3 filtering bit" },
+    { 1, 2, MS_SYSREG_PMCCFILTR, NS_ALL, 27, 1, "NSH", "perfmon", "PMCCFILTR", "Non-secure Hyp modes filtering bit" },
+    { 1, 3, MS_SYSREG_PMCCFILTR, NS_ALL, 28, 1, "NSU", "perfmon", "PMCCFILTR", "Non-secure user mode filtering bit" },
+    { 1, 4, MS_SYSREG_PMCCFILTR, NS_ALL, 29, 1, "NSK", "perfmon", "PMCCFILTR", "Non-secure kernel (EL1) mode filtering bit" },
+    { 1, 5, MS_SYSREG_PMCCFILTR, NS_ALL, 30, 1, "NSK", "perfmon", "PMCCFILTR", "EL0 filtering bit" },
+    { 1, 6, MS_SYSREG_PMCCFILTR, NS_ALL, 31, 1, "P", "perfmon", "PMCCFILTR", "EL1 modes filtering bit" },
+    
+    { 1, 0, MS_SYSREG_PMCCNTR, NS_ALL, 0, 64, "CCNT", "perfmon", "PMCCNTR", "Cycle count" },
+
+    { 1, 0, MS_SYSREG_PMCEID0, NS_ALL, 0, 32, "ID", "perfmon", "PMCEID0", "Common event implemented bit" },
+
+    { 1, 0, MS_SYSREG_PMCEID1, NS_ALL, 0, 32, "ID", "perfmon", "PMCEID1", "Common event implemented bit" },
+
+    { 1, 0, MS_SYSREG_PMCNTENCLR, NS_ALL, 0, 31, "P", "perfmon", "PMCNTENCLR", "Event counter disable bit" },
+    { 1, 1, MS_SYSREG_PMCNTENCLR, NS_ALL, 31, 1, "C", "perfmon", "PMCNTENCLR", "PMCCNTR_EL0 disable bit" },  
+
+    { 1, 0, MS_SYSREG_PMCNTENSET, NS_ALL, 0, 31, "P", "perfmon", "PMCNTENSET", "Event counter enable bit" },
+    { 1, 1, MS_SYSREG_PMCNTENSET, NS_ALL, 31, 1, "C", "perfmon", "PMCNTENSET", "PMCCNTR_EL0 enable bit" },
+
+    { 1, 0, MS_SYSREG_PMINTENCLR, NS_PRIVILEGE_LEVEL_1, 0, 31, "P", "perfmon", "PMINTENCLR", "Event counter overflow interrupt request disable bit" },
+    { 1, 1, MS_SYSREG_PMINTENCLR, NS_PRIVILEGE_LEVEL_1, 31, 1, "C", "perfmon", "PMINTENCLR", "PMCCNTR_EL0 overflow interrupt disable bit" },
+
+    { 1, 0, MS_SYSREG_PMINTENSET, NS_PRIVILEGE_LEVEL_1, 0, 31, "P", "perfmon", "PMINTENSET", "Event counter overflow interrupt request enable bit" },
+    { 1, 1, MS_SYSREG_PMINTENSET, NS_PRIVILEGE_LEVEL_1, 31, 1, "C", "perfmon", "PMINTENSET", "PMCCNTR_EL0 overflow interrupt request enable bit" },
+    
+    { 1, 0, MS_SYSREG_PMOVSCLR, NS_ALL, 0, 31, "P", "perfmon", "PMOVSCLR", "Event counter overflow clear bit for PMEVCNTR" },
+    { 1, 1, MS_SYSREG_PMOVSCLR, NS_ALL, 31, 1, "C", "perfmon", "PMOVSCLR", "PMCCNTR_EL0 overflow bit" },
+
+    { 1, 0, MS_SYSREG_PMOVSSET, NS_ALL, 0, 31, "P", "perfmon", "PMOVSSET", "Event counter overflow set bit for PMEVCNTR" },
+    { 1, 1, MS_SYSREG_PMOVSSET, NS_ALL, 31, 1, "C", "perfmon", "PMOVSSET", "PMCCNTR_EL0 overflow bit" },
+
+    { 1, 0, MS_SYSREG_PMSELR, NS_ALL, 0, 5, "SEL", "perfmon", "PMSELR", "Selects event counter PMEVCNTR" },
+    { 1, 1, MS_SYSREG_PMSELR, NS_ALL, 5, 27, "Reserved", "perfmon", "PMSELR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_PMSWINC, NS_ALL, 0, 31, "P", "perfmon", "PMSWINC", "Event counter software interrupt for PMEVCNTR" },
+    { 1, 1, MS_SYSREG_PMSWINC, NS_ALL, 31, 1, "Reserved", "perfmon", "PMSWINC", "Reserved" },
+
+    { 1, 0, MS_SYSREG_PMUSERENR, NS_ALL, 0, 1, "EN", "perfmon", "PMUSERENR", "Traps EL0 accesses to the Performance Monitor registers to EL1" },
+    { 1, 1, MS_SYSREG_PMUSERENR, NS_ALL, 1, 1, "SW", "perfmon", "PMUSERENR", "Software increment write trap to EL1" },
+    { 1, 2, MS_SYSREG_PMUSERENR, NS_ALL, 2, 1, "CR", "perfmon", "PMUSERENR", "Cycle counter read trap to EL1" },
+    { 1, 3, MS_SYSREG_PMUSERENR, NS_ALL, 3, 1, "ER", "perfmon", "PMUSERENR", "Event counter read trap to EL1" },
+    { 1, 4, MS_SYSREG_PMUSERENR, NS_ALL, 4, 28, "Reserved", "perfmon", "PMUSERENR", "Reserved" },
+
+    { 1, 0, MS_SYSREG_PMXEVCNTR, NS_ALL, 0, 32, "Value", "perfmon", "PMXEVCNTR", "Value of the selected event counter" },
+
+    { 1, 0, MS_SYSREG_PMXEVTYPER, NS_ALL, 0, 32, "ETR", "perfmon", "PMXEVTYPER", "Event type register or PMCCFILTR_EL0" },
+    
+    /* "other" handling bitfields */
+    { 1, 0, MS_SYSREG_ACTLR, NS_PRIVILEGE_LEVEL_1, 0, 64, "Implementation Defined", "other", "ACTLR", "Implementation Defined" },
+    
+    { 1, 0, MS_SYSREG_CPACR, NS_PRIVILEGE_LEVEL_1, 0, 19, "Reserved", "other", "CPACR", "Reserved" },
+    { 1, 1, MS_SYSREG_CPACR, NS_PRIVILEGE_LEVEL_1, 20, 2, "FPEN", "other", "CPACR", "Floating-point registers in EL0 and EL1 trapped to EL1" },
+    { 1, 2, MS_SYSREG_CPACR, NS_PRIVILEGE_LEVEL_1, 22, 6, "Reserved", "other", "CPACR", "Reserved" },
+    { 1, 3, MS_SYSREG_CPACR, NS_PRIVILEGE_LEVEL_1, 28, 1, "TTA", "other", "CPACR", "Trace registers in EL0 and EL1 trapped to EL1" },
+    { 1, 4, MS_SYSREG_CPACR, NS_PRIVILEGE_LEVEL_1, 29, 3, "Reserved", "other", "CPACR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_RMR, NS_PRIVILEGE_LEVEL_1, 0, 1, "AA64", "other", "RMR", "Determines which state the PE boots into after a Warm reset" },
+    { 1, 1, MS_SYSREG_RMR, NS_PRIVILEGE_LEVEL_1, 1, 1, "RR", "other", "RMR", "Requests a Warm reset" },
+    { 1, 2, MS_SYSREG_RMR, NS_PRIVILEGE_LEVEL_1, 2, 30, "Reserved", "other", "RMR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_RVBAR, NS_PRIVILEGE_LEVEL_1, 0, 64, "Reset Address", "other", "RVBAR", "Address that execution starts at 64-bit reset" },
+        
+    /* Fault handling bitfields */      
+    { 1, 0, MS_SYSREG_FAR, NS_PRIVILEGE_LEVEL_1, 0, 64, "VA", "fault", "FAR", "VA of faulting address of synchronous Data Abort exception" },
+    
+    { 1, 0, MS_SYSREG_DFSR, NS_PRIVILEGE_LEVEL_1, 0, 25, "ISS", "fault", "ESR", "Instruction specific syndrome" },
+    { 1, 1, MS_SYSREG_DFSR, NS_PRIVILEGE_LEVEL_1, 25, 1, "IL", "fault", "ESR", "Instruction length of synchronous exception" },
+    { 1, 2, MS_SYSREG_DFSR, NS_PRIVILEGE_LEVEL_1, 26, 6, "EC", "fault", "ESR", "Exception class" },
+    
+    { 1, 0 , MS_SYSREG_ADFSR, NS_PRIVILEGE_LEVEL_1, 0, 32, "Implementation defined", "fault", "AFSR0", "Implementation defined" },
+    
+    { 1, 0 , MS_SYSREG_AIFSR, NS_PRIVILEGE_LEVEL_1, 0, 32, "Implementation defined", "fault", "AFSR1", "Implementation defined" },
+
+    
+    /* Thumb */
+    { 1, 0, MS_SYSREG_TEECR, NS_ALL, 0, 1, "XED", "thumb", "TEECR", "Unprivileged Execution Environment Disable" },
+    { 1, 1, MS_SYSREG_TEECR, NS_ALL, 1, 31, "Reserved", "thumb", "TEECR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_TEEHBR, NS_ALL, 0, 2, "Reserved", "thumb", "TEEHBR", "Reserved" },
+    { 1, 1, MS_SYSREG_TEEHBR, NS_ALL, 2, 30, "HandlerBase", "thumb", "TEEHBR", "Address of ThumbEE handlers" },
+    
+    /* Misc */
+    { 1, 0, MS_SYSREG_TPIDRPRW, NS_PRIVILEGE_LEVEL_1, 0, 64, "Thread ID", "misc", "TPIDR", "Thread ID Storage" },
+    
+    { 1, 0, MS_SYSREG_TPIDRURO, NS_PRIVILEGE_LEVEL_0, 0, 64, "Thread ID", "misc", "TPIDRRO", "Thread ID Storage" },
+    
+    { 1, 0, MS_SYSREG_TPIDRURW, NS_PRIVILEGE_LEVEL_0, 0, 64, "Thread ID", "misc", "TPIDR", "Thread ID Storage" }, 
+        
+    /* Address Translation */
+    { 1, 0, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 0, 1, "F", "addrtrans", "PAR", "Conversion status" },
+    { 1, 1, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 1, 6, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { 1, 2, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 7, 2, "SH", "addrtrans", "PAR", "Shareability attribute" },
+    { 1, 3, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 9, 1, "NS", "addrtrans", "PAR", "Non-secure" },
+    { 1, 4, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 10, 1, "Implementation Defined", "addrtrans", "PAR", "Implementation Defined" },
+    { 1, 5, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 11, 1, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { 1, 6, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 12, 36, "PA", "addrtrans", "PAR", "Output Address" },
+    { 1, 7, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 48, 8, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { 1, 8, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 56, 8, "ATTR", "addrtrans", "PAR", "Memory attributes" },
+        
+    /* Special-purpose registers */
+    
+    { 1, 0, MS_SYSREG_CURRENTEL, NS_PRIVILEGE_LEVEL_1, 0, 2, "Reserved", "other", "CURRENTEL", "Reserved" },
+    { 1, 1, MS_SYSREG_CURRENTEL, NS_PRIVILEGE_LEVEL_1, 2, 2, "EL", "other", "CURRENTEL", "Current exception level" },
+    { 1, 2, MS_SYSREG_CURRENTEL, NS_PRIVILEGE_LEVEL_1, 4, 28, "Reserved", "other", "CURRENTEL", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 0, 6, "Reserved", "other", "DAIF", "Reserved" },
+    { 1, 1, MS_SYSREG_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 6, 1, "F", "other", "DAIF", "FIQ mask bit" },
+    { 1, 2, MS_SYSREG_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 7, 1, "I", "other", "DAIF", "IRQ mask bit" },
+    { 1, 3, MS_SYSREG_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 8, 1, "A", "other", "DAIF", "System Error mask bit" },
+    { 1, 4, MS_SYSREG_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 9, 1, "D", "other", "DAIF", "Process state D mask" },
+    { 1, 5, MS_SYSREG_DAIF, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 10, 22, "Reserved", "other", "DAIF", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 0, 8, "Reserved", "other", "FPCR", "Reserved" },
+    { 1, 1, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 8, 1, "IOE", "other", "FPCR", "Invalid operation trap enable" },
+    { 1, 2, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 9, 1, "DZE", "other", "FPCR", "Division by zero exception trap enable" },
+    { 1, 3, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 10, 1, "OFE", "other", "FPCR", "Overflow exception trap enable" },
+    { 1, 4, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 11, 1, "UFE", "other", "FPCR", "Underflow exception trap enable" },
+    { 1, 5, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 12, 1, "IXE", "other", "FPCR", "Inexact exception trap enable" },
+    { 1, 6, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 13, 2, "Reserved", "other", "FPCR", "Reserved" },
+    { 1, 7, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 15, 1, "IDE", "other", "FPCR", "Input Denormal exception trap enable" },
+    { 1, 8, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 16, 3, "LEN", "other", "FPCR", "No aarch64 function" },
+    { 1, 9, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 19, 1, "Reserved", "other", "FPCR", "Reserved" },
+    { 1, 10, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 20, 2, "Stride", "other", "FPCR", "No aarch64 function" },
+    { 1, 11, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 22, 2, "RMode", "other", "FPCR", "Rounding Mode control field" },
+    { 1, 12, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 24, 1, "FZ", "other", "FPCR", "Flush-to-zero mode control bit" },
+    { 1, 13, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 25, 1, "DN", "other", "FPCR", "Default NaN mode control bit" },
+    { 1, 14, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 26, 1, "AHP", "other", "FPCR", "Alternative half-precision control bit" },
+    { 1, 15, MS_SYSREG_FPCR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 27, 5, "Reserved", "other", "FPCR", "Reserved" },
+
+    { 1, 0, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 0, 1, "IOC", "other", "FPSR", "Invalid operation cumulative exception bit" },
+    { 1, 1, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 1, 1, "DZC", "other", "FPSR", "Division by zero cumulative exception bit" },
+    { 1, 2, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 2, 1, "OFC", "other", "FPSR", "Overflow cumulative exception bit" },
+    { 1, 3, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 3, 1, "UFC", "other", "FPSR", "Underflow cumulative exception bit" },
+    { 1, 4, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 4, 1, "IXV", "other", "FPSR", "Inexact cumulative exception bit" },
+    { 1, 5, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 5, 2, "Reserved", "other", "FPSR", "Reserved" },
+    { 1, 6, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 7, 1, "IDC", "other", "FPSR", "Input Denormal cumulative exception bit" },
+    { 1, 7, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 8, 19, "Reserved", "other", "FPSR", "Reserved" },
+    { 1, 8, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 27, 1, "QC", "other", "FPSR", "Cumulative saturation bit" },
+    { 1, 9, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 28, 1, "V", "other", "FPSR", "Overflow condition flag for aarch32 fp" },
+    { 1, 10, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 29, 1, "C", "other", "FPSR", "Carry condition flag for aarch32 fp" },
+    { 1, 11, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 30, 1, "Z", "other", "FPSR", "Zero condition flag for aarch32 fp" },
+    { 1, 12, MS_SYSREG_FPSR, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 31, 1, "N", "other", "FPSR", "Negative condition flag for aarch32 fp" },  
+
+    { 1, 0, MS_SYSREG_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 0, 28, "Reserved", "other", "NZCV", "Reserved" },
+    { 1, 1, MS_SYSREG_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 28, 1, "V", "other", "NZCV", "Overflow condition flag" },
+    { 1, 2, MS_SYSREG_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 29, 1, "C", "other", "NZCV", "Carry condition flag" },
+    { 1, 3, MS_SYSREG_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 30, 1, "Z", "other", "NZCV", "Zero condition flag" },
+    { 1, 4, MS_SYSREG_NZCV, NS_PRIVILEGE_LEVEL_0 | NS_PRIVILEGE_LEVEL_1, 31, 1, "N", "other", "NZCV", "Negative condition flag" }, 
+    
+    { 1, 0, MS_SYSREG_SPSEL, NS_PRIVILEGE_LEVEL_1, 0, 1, "SP", "other", "SPSEL", "Stack pointer to use" },
+    { 1, 1, MS_SYSREG_SPSEL, NS_PRIVILEGE_LEVEL_1, 1, 31, "Reserved", "other", "SPSEL", "Reserved" },
+
+};
+
+int
+return_bitfield_armv8a_size(void)
+{
+    return (sizeof(bitfield_armv8a_table) / sizeof(bitfield_info));
+}

@@ -5,6 +5,8 @@
 
 #include "ms_debug.h"
 #include "cmd_handler.h"
+#include "device_tree.h"
+#include "undef_hook.h"
 
 static
 long
@@ -17,7 +19,10 @@ ms_ioctl(
     switch(cmd)
     {
         case MS_IOCTL_CO:       
-            call_cmd_co((void *)arg);
+            call_cmd((void *)arg, call_func_return_results);
+            break;
+        case MS_IOCTL_GIC:
+            call_cmd((void *)arg, gic_return_results);
             break;
         default:
             break;
@@ -85,6 +90,12 @@ __init maplesyrup_init(void)
         TRACE("Failed to find_undef_hook\n", 0);
         goto done;
     }
+    
+    /* Get device tree data */
+    if (ms_init_dt_data() != 0)
+    {
+        TRACE("Failed to init DT data\n", 0);
+    }
         
     /* Register misc device */      
     if (misc_register(&ms_device) != 0)
@@ -104,7 +115,8 @@ void
 __exit maplesyrup_exit(void)
 {
     printk("Unregistering Maplesyrup\n");
-    misc_deregister(&ms_device);    
+    misc_deregister(&ms_device); 
+    ms_cleanup_dt_data();
     return;
 }
 

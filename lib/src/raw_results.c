@@ -20,7 +20,7 @@
 int
 driver_results(
     unsigned int cmd,
-    co15_result_cpu * results)
+    ms_data_cpu * results)
 {
     long result = -1;
     unsigned int i = 0;

@@ -15,14 +15,25 @@
 typedef struct _bitfield_table_entry
 {
     unsigned int table_type;
+    unsigned int part_number;
     bitfield_info * table_ptr;
     int (*table_size_ptr)(void);
+    int (*table_compsize_ptr)(void);
 } bitfield_table_entry;
+
+typedef struct bitfield_info_heap
+{
+    unsigned int table_type;        // additional metadata for heap
+    char register_name_expanded[PARSE_MAX_BITFIELD];
+    struct bitfield_info info;  
+} bitfield_info_heap;
 
 enum
 {
     TYPE_IMPL,
     TYPE_ARCH,
+    
+    TYPE_MM, // memory-mapped components
 };
     
 
@@ -62,5 +73,8 @@ int find_bitfields(match_info * info, ms_list_head * list);
 int get_groups(ms_list_head * listout);
 int get_registers(ms_list_head * listout);
 int get_bitfields(ms_list_head * listout);
+
+int read_tables_to_memory();
+void erase_tables();
 
 #endif

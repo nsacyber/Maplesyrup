@@ -5,28 +5,27 @@
 
 #ifdef __KERNEL__
 
-struct undef_hook; // forward declare
-
 #define MS_CPU_ALL 0xFFFFFFFF
 
-typedef void (*register_undef_hook_t)(struct undef_hook * hook);
-typedef void (*unregister_undef_hook_t)(struct undef_hook * hook);
-
-int call_cmd_co(void * result);
-void ms_del_undef_instr_hook(void);
-int ms_add_undef_instr_hook(void);
-int ms_find_undef_hook(void);
+int call_cmd(void * buffer, int (*pcall)(ms_data_cpu * result_out));
+int call_func_return_results(ms_data_cpu * result_out);
+int gic_return_results(ms_data_cpu * result_out);
 
 /* To facilitate 'on_each_cpu_kthread' call */
 typedef struct co15_result_cpu_wrapper
 {
     unsigned int found_index;
+    void * base_addr;
     unsigned int pcpu;  
-    co15_result_cpu results;
+    ms_data_cpu results;
 } co15_result_cpu_wrapper;
 
+int unpack_result_wrapper(ms_data_cpu * userin, co15_result_cpu_wrapper * kernelout);
+int repack_result_wrapper(co15_result_cpu_wrapper * kernelin, ms_data_cpu * userout);
+int on_each_cpu_kick(void (*funcptr)(void * funcdata), co15_result_cpu_wrapper * data);
+
 #else
-int usermode_results(unsigned int cmd, co15_result * result_out);
+int usermode_results(unsigned int cmd, ms_data * result_out);
 int register_signal_handlers();
 void restore_signal_handlers();
 #endif

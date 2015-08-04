@@ -3,6 +3,6 @@
 
 #include "parse.h"
 
-int driver_results(unsigned int cmd, co15_result_cpu * results);
+int driver_results(unsigned int cmd, ms_data_cpu * results);
 
 #endif

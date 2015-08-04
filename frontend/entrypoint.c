@@ -290,7 +290,8 @@ main(int argc, char ** argv)
     int arg_core = -1;    
     int option_index = 0;   
     int ppl = 0;    
-        
+    int m = 0;
+    
     if (argc == 1)
     {
         show_banner(1, 0, 0);

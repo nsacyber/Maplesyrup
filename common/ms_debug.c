@@ -83,6 +83,7 @@ hex_dump(
         }
         if (((i + 1) % 32) == 0)
         {
+            PRINTF(" (+0x%x)", i - 0x1F);
             PRINTF("\n");
         }
         
@@ -102,7 +103,7 @@ hex_dump(
             PRINTF(". ");
         }
         if (((i + 1) % 4) == 0) { PRINTF(" "); }
-        if (((i + 1) % 32) == 0) { PRINTF("\n"); }
+        if (((i + 1) % 32) == 0) { PRINTF(" (+0x%x)", i - 0x1F); PRINTF("\n"); }
         
         pBuffer++;
         

@@ -71,6 +71,7 @@ procedure has completed.
 * Memory-mapped registers are currently not supported
 * Only EL0/EL1 are supported
 * Support for Cortex A7/A15/A53/A57
+* Experimental GICv2 support
 
   *   This application reads only a small portion of the available system
       registers on an ARM CPU. Please refer to the ARMv7A and ARMv8A Architecture
@@ -120,7 +121,7 @@ Final build executables will be './frontend/maplesyrup' and './module/maplesyrup
     ./configure LDFLAGS="-static" 
     make
     cd module   
-    export KERNEL_SOURCE=<path to kernel source tree>
+    export KERNEL_SRC=<path to kernel source tree>
     make
 ```
 
@@ -135,7 +136,7 @@ Final build executables will be './frontend/maplesyrup' and './module/maplesyrup
     cd module
     export ARCH=arm (or arm64)
     export CROSS_COMPILE=arm-linux-gnueabi- (or aarch64-linux-gnu-)
-    export KERNEL_SOURCE=<path to kernel source tree>
+    export KERNEL_SRC=<path to kernel source tree>
     make
 ```
 
@@ -158,7 +159,7 @@ Final build executables will be './frontend/maplesyrup' and './module/maplesyrup
     cd module
     export ARCH=arm
     export CROSS_COMPILE=arm-linux-gnueabi-
-    export KERNEL_SOURCE=<path to android kernel source tree>
+    export KERNEL_SRC=<path to android kernel source tree>
     make
 ```
 
@@ -324,5 +325,5 @@ The following files may need to be modified if a new register needs to be added:
 *   ./common/parse.h
 
 The actual decode tables are stored under
-*   ./lib/src/
+*   ./lib/src/bitfields/
 and follow the naming convention bitfield_*.c/h.

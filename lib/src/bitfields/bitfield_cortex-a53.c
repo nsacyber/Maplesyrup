@@ -1,0 +1,142 @@
+#include <stdio.h>
+#include <sys/ioctl.h>
+
+#include "maplesyrup.h"
+#include "parse.h"
+#include "bitfield_cortex-a53.h"
+
+bitfield_info bitfield_cortex_a53_table[] =
+{   
+    { 1, 0, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 0, 1, "OUTPUTLATENCY", "impl_def", "L2CTLR", "L2 Data RAM output latency" },
+    { 1, 1, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 1, 4, "Reserved", "impl_def", "L2CTLR", "Reserved" },
+    { 1, 2, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 5, 1, "INPUTLATENCY", "impl_def", "L2CTLR", "L2 Data RAM input latency" },
+    { 1, 3, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 6, 15, "Reserved", "impl_def", "L2CTLR", "Reserved" },
+    { 1, 4, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 21, 1, "SCUL2", "impl_def", "L2CTLR", "SCU-L2 Cache Protection" },
+    { 1, 5, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 22, 1, "CPU", "impl_def", "L2CTLR", "CPU Cache Protection" },
+    { 1, 6, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 23, 1, "Reserved", "impl_def", "L2CTLR", "Reserved" },
+    { 1, 7, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 24, 2, "CORES", "impl_def", "L2CTLR", "Number of cores" },
+    { 1, 8, MS_SYSREG_L2CTLR, NS_PRIVILEGE_LEVEL_1, 26, 6, "Reserved", "impl_def", "L2CTLR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_L2ECTLR, NS_PRIVILEGE_LEVEL_1, 0, 3, "DYNRET", "impl_def", "L2ECTLR", "L2 dynamic retention control" },
+    { 1, 1, MS_SYSREG_L2ECTLR, NS_PRIVILEGE_LEVEL_1, 3, 26, "Reserved", "impl_def", "L2ECTLR", "Reserved" },
+    { 1, 2, MS_SYSREG_L2ECTLR, NS_PRIVILEGE_LEVEL_1, 29, 1, "ASYNCERR", "impl_def", "L2ECTLR", "ACI or AMBA 5 CHI asynchronous error" },
+    { 1, 3, MS_SYSREG_L2ECTLR, NS_PRIVILEGE_LEVEL_1, 30, 1, "IASYNCERR", "impl_def", "L2ECTLR", "L2 internal asynchronous error" },
+    { 1, 4, MS_SYSREG_L2ECTLR, NS_PRIVILEGE_LEVEL_1, 31, 1, "IASYNCERR", "impl_def", "L2ECTLR", "L2 internal asynchronous error" },
+    
+    { 1, 0, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 0, 3, "Reserved", "impl_def", "L2ACTLR", "Reserved" },
+    { 1, 1, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 3, 1, "DCEPTE", "impl_def", "L2ACTLR", "Disable clean/evict push to external" },
+    { 1, 2, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 4, 10, "Reserved", "impl_def", "L2ACTLR", "Reserved" },
+    { 1, 3, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 14, 1, "EUEWD", "impl_def", "L2ACTLR", "Enable UniqueClean evictions with data" },
+    { 1, 4, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 15, 9, "Reserved", "impl_def", "L2ACTLR", "Reserved" },
+    { 1, 5, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 24, 1, "L2TEIEN", "impl_def", "L2ACTLR", "L2 cache tag RAM error injection enable" },
+    { 1, 6, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 25, 4, "Reserved", "impl_def", "L2ACTLR", "Reserved" },
+    { 1, 7, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 29, 1, "L2DEIEN", "impl_def", "L2ACTLR", "L2 cache data RAM error injection enable" },
+    { 1, 8, MS_SYSREG_L2ACTLR, NS_PRIVILEGE_LEVEL_1, 30, 2, "L2VC", "impl_def", "L2ACTLR", "L2 Victim Control" },
+    
+    { 1, 0, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 0, 1, "D", "addrtrans", "PAR", "Indicates successful conversion" },
+    { 1, 1, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 1, 6, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { 1, 2, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 7, 2, "SHA", "addrtrans", "PAR", "Shareability attribute" },
+    { 1, 3, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 9, 1, "NS", "addrtrans", "PAR", "Non-secure" },
+    { 1, 4, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 10, 1, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { 1, 5, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 11, 1, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { 1, 6, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 12, 36, "PA", "addrtrans", "PAR", "Physical address" },
+    { 1, 7, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 48, 8, "Reserved", "addrtrans", "PAR", "Reserved" },
+    { 1, 8, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 56, 4, "AttrL", "addrtrans", "PAR", "Defines device memory and inner cacheability" },
+    { 1, 9, MS_SYSREG_PAR, NS_PRIVILEGE_LEVEL_1, 60, 4, "AttrH", "addrtrans", "PAR", "Defined normal and device memory and outer cacheability" },
+
+    { 1, 0, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 0, 6, "Reserved", "impl_def", "CPUACTLR", "Reserved" },
+    { 1, 1, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 6, 1, "L1DEIEN", "impl_def", "CPUACTLR", "L1 D-cache data RAM error injection enable" },
+    { 1, 2, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 7, 3, "Reserved", "impl_def", "CPUACTLR", "Reserved" },
+    { 1, 3, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 10, 1, "DODMBS", "impl_def", "CPUACTLR", "Disable optimized Data Memory Barrier behavior" },
+    { 1, 4, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 11, 2, "Reserved", "impl_def", "CPUACTLR", "Reserved" },
+    { 1, 5, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 13, 3, "L1PCTL", "impl_def", "CPUACTLR", "L1 Data prefetch control" },
+    { 1, 6, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 16, 1, "Reserved", "impl_def", "CPUACTLR", "Reserved" },
+    { 1, 7, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 17, 1, "STRIDE", "impl_def", "CPUACTLR", "Configure the sequence length that triggers data prefetch streams" },
+    { 1, 8, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 18, 1, "DSTDIS", "impl_def", "CPUACTLR", "Enable device split throttle" },
+    { 1, 9, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 19, 2, "NPFSTRM", "impl_def", "CPUACTLR", "Number of independent data prefetch streams" },
+    { 1, 10, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 21, 1, "IFUTHDIS", "impl_def", "CPUACTLR", "IFU fetch throttle disabled" },
+    { 1, 11, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 22, 1, "STBPFDIS", "impl_def", "CPUACTLR", "Disable prefetch streams initiated from STB accesses" },
+    { 1, 12, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 23, 1, "STBPFDIS", "impl_def", "CPUACTLR", "Disable ReadUnique request for prefetch streams initiated by STB accesses" },
+    { 1, 13, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 24, 1, "DTAH", "impl_def", "CPUACTLR", "Disable transient allocation hint" },
+    { 1, 14, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 25, 2, "L1RADIS", "impl_def", "CPUACTLR", "Write streaming no-L1-allocate threshold" },
+    { 1, 15, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 27, 2, "RADIS", "impl_def", "CPUACTLR", "Write streaming no-allocate threshold" },
+    { 1, 16, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 29, 1, "DIDIS", "impl_def", "CPUACTLR", "Disable dual issue" },
+    { 1, 17, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 30, 1, "FPDIDIS", "impl_def", "CPUACTLR", "Disable floating-point dual issue" },
+    { 1, 18, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 31, 13, "Reserved", "impl_def", "CPUACTLR", "Reserved" },
+    { 1, 19, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 44, 1, "ENDCCASCI", "impl_def", "CPUACTLR", "Enable data cache clean as data cache clean/invalidate" },
+    { 1, 20, MS_SYSREG_CPUACTLR, NS_PRIVILEGE_LEVEL_1, 45, 19, "Reserved", "impl_def", "CPUACTLR", "Reserved" },  
+    
+    { 1, 0, MS_SYSREG_CPUECTLR, NS_PRIVILEGE_LEVEL_1, 0, 3, "CPURETCTL", "impl_def", "CPUECTLR", "CPU retention control" },    
+    { 1, 1, MS_SYSREG_CPUECTLR, NS_PRIVILEGE_LEVEL_1, 3, 3, "FPRETCTL", "impl_def", "CPUECTLR", "Advanced SIMD and Floating-point retention control" }, 
+    { 1, 2, MS_SYSREG_CPUECTLR, NS_PRIVILEGE_LEVEL_1, 6, 1, "SMPEN", "impl_def", "CPUECTLR", "Enable hardware management of data coherency with other cores in the cluster" }, 
+    { 1, 3, MS_SYSREG_CPUECTLR, NS_PRIVILEGE_LEVEL_1, 7, 57, "Reserved", "impl_def", "CPUECTLR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 0, 12, "RAMADDR", "impl_def", "CPUMERRSR", "Indicates the index address of the first memory error" },    
+    { 1, 1, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 12, 6, "Reserved", "impl_def", "CPUMERRSR", "Reserved" },    
+    { 1, 2, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 18, 3, "CPUIDWAY", "impl_def", "CPUMERRSR", "Indicates the RAM where the first memory error occurred" },    
+    { 1, 3, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 21, 3, "Reserved", "impl_def", "CPUMERRSR", "Reserved" },    
+    { 1, 4, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 24, 7, "RAMID", "impl_def", "CPUMERRSR", "Ram Identifier" },
+    { 1, 5, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 31, 1, "Valid", "impl_def", "CPUMERRSR", "Valid bit. Set to 1 on first memory error" },
+    { 1, 6, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 32, 8, "REC", "impl_def", "CPUMERRSR", "Repeat memory error count when valid bit is set" },
+    { 1, 7, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 40, 8, "OEC", "impl_def", "CPUMERRSR", "Other memory error count when valid bit is set" },
+    { 1, 8, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 48, 15, "Reserved", "impl_def", "CPUMERRSR", "Reserved" },
+    { 1, 9, MS_SYSREG_CPUMERRSR, NS_PRIVILEGE_LEVEL_1, 63, 1, "Fatal", "impl_def", "CPUMERRSR", "Fatal bit. Set to 1 on first memory error that cased data abort" },
+
+    { 1, 0, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 0, 3, "Reserved", "impl_def", "L2MERRSR", "Reserved" },
+    { 1, 1, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 3, 14, "RAMADDR", "impl_def", "L2MERRSR", "Indicates the index address of the first memory error" },   
+    { 1, 2, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 17, 1, "Reserved", "impl_def", "L2MERRSR", "Reserved" },
+    { 1, 3, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 18, 4, "CPUIDWAY", "impl_def", "L2MERRSR", "Indicates the RAM where the first memory error occurred" },   
+    { 1, 4, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 22, 2, "Reserved", "impl_def", "L2MERRSR", "Reserved" },
+    { 1, 5, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 24, 7, "RAMID", "impl_def", "L2MERRSR", "Indicates the RAM where the first memory error occurred" }, 
+    { 1, 6, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 31, 1, "VALID", "impl_def", "L2MERRSR", "Valid bit. Set to 1 on first memory error" },
+    { 1, 7, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 32, 8, "REC", "impl_def", "L2MERRSR", "Repeat memory error count when valid bit is set" },
+    { 1, 8, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 40, 8, "OEC", "impl_def", "L2MERRSR", "Other memory error count when valid bit is set" },
+    { 1, 9, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 48, 15, "Reserved", "impl_def", "L2MERRSR", "Reserved" },
+    { 1, 10, MS_SYSREG_L2MERRSR, NS_PRIVILEGE_LEVEL_1, 63, 1, "Fatal", "impl_def", "L2MERRSR", "Fatal bit. Set to 1 on first memory error that cased data abort" },
+
+    { 1, 0, MS_SYSREG_CBAR, NS_PRIVILEGE_LEVEL_1, 0, 18, "Reserved", "impl_def", "CBAR", "Reserved" },
+    { 1, 1, MS_SYSREG_CBAR, NS_PRIVILEGE_LEVEL_1, 18, 32, "PERIPHBASE_39_18", "impl_def", "CBAR", "Reset base address of memory-mapped GIC CPU interface registers" },
+    { 1, 2, MS_SYSREG_CBAR, NS_PRIVILEGE_LEVEL_1, 40, 24, "Reserved", "impl_def", "CBAR", "Reserved" },
+
+    { 1, 0, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 0, 1, "M", "virtmem", "SCTLR", "MMU Enable" },
+    { 1, 1, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 1, 1, "A", "virtmem", "SCTLR", "Alignment check enable" },
+    { 1, 2, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 2, 1, "C", "virtmem", "SCTLR", "Cache enable" },
+    { 1, 3, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 3, 1, "SA", "virtmem", "SCTLR", "Stack alignment check enable" },
+    { 1, 4, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 4, 1, "SA0", "virtmem", "SCTLR", "Stack alignment check enable for EL0" },
+    { 1, 5, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 5, 1, "CP15BEN", "virtmem", "SCTLR", "CP15 barrier enable" },
+    { 1, 6, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 6, 1, "THEE", "virtmem", "SCTLR", "T32EE not implemented" },
+    { 1, 7, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 7, 1, "ITD", "virtmem", "SCTLR", "Disables some uses of IT instructions at EL0 using AArch32" },
+    { 1, 8, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 8, 1, "SED", "virtmem", "SCTLR", "Disables the SETEND instruction at EL0 using AArch32" },
+    { 1, 9, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 9, 1, "UMA", "virtmem", "SCTLR", "Traps EL0 execution of MSR and MRS instructions that access PSTATE" },
+    { 1, 10, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 10, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 11, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 11, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 12, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 12, 1, "I", "virtmem", "SCTLR", "Instruction access Cacheability control" },
+    { 1, 13, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 13, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 14, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 14, 1, "DZE", "virtmem", "SCTLR", "Traps EL0 execution of DC ZVA instructions to EL1" },
+    { 1, 15, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 15, 1, "UCT", "virtmem", "SCTLR", "Traps EL0 access to the CTR_EL0 register to EL1" },
+    { 1, 16, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 16, 1, "NTWI", "virtmem", "SCTLR", "Traps EL0 execution of WFI instructions to EL1" },
+    { 1, 17, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 17, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 18, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 18, 1, "NTWE", "virtmem", "SCTLR", "Traps EL0 execution of WFE instructions to EL1" },
+    { 1, 19, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 19, 1, "WXN", "virtmem", "SCTLR", "Write permission implies XN (Execute Never) at EL0/1" },
+    { 1, 20, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 20, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 21, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 21, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 22, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 22, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 23, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 24, 1, "E0E", "virtmem", "SCTLR", "Endianess of data access at EL0" },
+    { 1, 24, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 25, 1, "EE", "virtmem", "SCTLR", "Endianess of data at EL1 and translation table walk" },
+    { 1, 25, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 26, 1, "UCI", "virtmem", "SCTLR", "Traps EL0 cache maintenance instructions to EL1" },
+    { 1, 26, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 27, 1, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 27, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 28, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    { 1, 28, MS_SYSREG_SCTLR, NS_PRIVILEGE_LEVEL_1, 30, 2, "Reserved", "virtmem", "SCTLR", "Reserved" },
+    
+    { 1, 0, MS_SYSREG_DFSR, NS_PRIVILEGE_LEVEL_1, 0, 24, "ISS", "fault", "ESR", "Syndrome information" },
+    { 1, 1, MS_SYSREG_DFSR, NS_PRIVILEGE_LEVEL_1, 24, 1, "ISS Valid", "fault", "ESR", "Syndrome information" },
+    { 1, 2, MS_SYSREG_DFSR, NS_PRIVILEGE_LEVEL_1, 25, 1, "IL", "fault", "ESR", "Instruction length for synchronous exception" },
+    { 1, 3, MS_SYSREG_DFSR, NS_PRIVILEGE_LEVEL_1, 26, 5, "EC", "fault", "ESR", "Exception reason class" },
+    
+};
+
+int
+return_bitfield_cortex_a53_size(void)
+{
+    return (sizeof(bitfield_cortex_a53_table) / sizeof(bitfield_info));
+}
