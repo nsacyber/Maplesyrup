@@ -217,6 +217,7 @@ ms_init_dt_data(void)
     if (ms_populate_gic_map() != 0)
     {
         TRACE("Unable to get interrupt controller data\n", 0);
+        goto done;
     }
     
     result = 0;

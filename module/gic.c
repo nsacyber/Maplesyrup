@@ -21,7 +21,6 @@ gic_bar_read(
     void * result_out)
 {   
     unsigned int cpu_index = 0;    
-    void * base_addr = NULL;
     ms_data * co15_result_entry = NULL;
     co15_result_cpu_wrapper * result_out_cast = NULL;
     unsigned int value = 0;
@@ -32,6 +31,12 @@ gic_bar_read(
         goto done;
     }
     result_out_cast = (co15_result_cpu_wrapper *)result_out;
+    
+    if (result_out_cast->base_addr == NULL)
+    {
+        TRACE("No GIC base address\n", 0);
+        goto done;
+    }
     
 #ifdef CONFIG_SMP
     cpu_index = get_cpu();
