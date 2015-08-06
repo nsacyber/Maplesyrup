@@ -94,7 +94,7 @@ on a non-test system will compromise the system's security.
 ### Requirements
 ----------------
 *   Ubuntu 14.04
-  * sudo apt-get install libtool autotool
+  * sudo apt-get install libtool autoconf
 *   Toolchain for target architecture (if cross compiling) to build usermode and kernel components
   * _arm-linux-gnueabi_ for 32-bit
   * _aarch64-linux-gnu_ for 64-bit
