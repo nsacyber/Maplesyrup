@@ -89,10 +89,12 @@ on a non-test system will compromise the system's security.
 *   Versatile Express-A9 (QEMU)
 *   Android Goldfish 3.4 (QEMU)
 *   Versatile JUNO Development Platform
+*   Raspberry PI 2
    
 ### Requirements
 ----------------
 *   Ubuntu 14.04
+  * sudo apt-get install libtool autotool
 *   Toolchain for target architecture (if cross compiling) to build usermode and kernel components
   * _arm-linux-gnueabi_ for 32-bit
   * _aarch64-linux-gnu_ for 64-bit
