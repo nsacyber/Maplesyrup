@@ -28,7 +28,8 @@ bitfield_table_entry bitfield_table[] =
     { TYPE_ARCH, ARCH_ARMV7A, bitfield_armv7a_table, return_bitfield_armv7a_size, NULL},
     { TYPE_ARCH, ARCH_ARMV8A, bitfield_armv8a_table, return_bitfield_armv8a_size, NULL},
     
-    { TYPE_MM, GICC_V2, bitfield_gicv2_table, return_bitfield_gicv2_size, return_bitfield_gicv2_compsize},
+    { TYPE_MM, GICC_V2, bitfield_giccv2_table, return_bitfield_giccv2_size, return_bitfield_giccv2_compsize},
+    { TYPE_MM, GICD_V2, bitfield_gicdv2_table, return_bitfield_gicdv2_size, return_bitfield_gicdv2_compsize},
     
 };
 
@@ -56,35 +57,16 @@ unsigned int
 create_uid(unsigned int i,
             unsigned int j,
             unsigned int k,
-            unsigned char * group)
-{
-    unsigned int uid = 0;
-    unsigned int part = 0;
-    if (strncmp(group, "gicc", PARSE_MAX_FUNCTIONAL - 1) == 0)        
-    {
-        part = GICC_V2;
-    }
-    else if (strncmp(group, "gicd", PARSE_MAX_FUNCTIONAL - 1) == 0)
-    {
-        part = GICD_V2;
-    }
-    else if (strncmp(group, "gich", PARSE_MAX_FUNCTIONAL - 1) == 0)
-    {
-        part = GICH_V2;
-    }
-    else if (strncmp(group, "gicv", PARSE_MAX_FUNCTIONAL - 1) == 0)
-    {
-        part = GICV_V2;
-    }
-    
-    part = mscode(part,
-                    bitfield_table[i].table_ptr[j].ioctl_code,
-                    bitfield_table[i].table_ptr[j].ioctl_code + (k * MS_GICV2_ALIGNMENT));
-    return part;
+            unsigned int part)
+{   
+    return mscode(part,
+                    bitfield_table[i].table_ptr[j].register_uid,
+                    bitfield_table[i].table_ptr[j].register_uid + (k * MS_GICV2_ALIGNMENT));    
 }
 
 int
-read_tables_to_memory()
+read_tables_to_memory(
+    int include_devices)
 {
     int result = -1;
     int i = 0;
@@ -122,12 +104,12 @@ read_tables_to_memory()
                 g_bitfield_table_heap[buffer_index].table_type =        bitfield_table[i].table_type;
                 g_bitfield_table_heap[buffer_index].info.range =        bitfield_table[i].table_ptr[j].range;
                 
-                /* Generate bitfield code */
-                g_bitfield_table_heap[buffer_index].info.bitfield_code =    mscode(bitfield_table[i].part_number,
-                                                                                bitfield_table[i].table_ptr[j].ioctl_code,
-                                                                                bitfield_table[i].table_ptr[j].bitfield_code);
+                /* Generate uid */
+                g_bitfield_table_heap[buffer_index].info.uid =    mscode(bitfield_table[i].part_number,
+                                                                                bitfield_table[i].table_ptr[j].register_uid,
+                                                                                bitfield_table[i].table_ptr[j].uid);
                 
-                g_bitfield_table_heap[buffer_index].info.ioctl_code =       bitfield_table[i].table_ptr[j].ioctl_code;
+                g_bitfield_table_heap[buffer_index].info.register_uid =       bitfield_table[i].table_ptr[j].register_uid;
                 g_bitfield_table_heap[buffer_index].info.ppl =              bitfield_table[i].table_ptr[j].ppl;
                 g_bitfield_table_heap[buffer_index].info.rightshift =       bitfield_table[i].table_ptr[j].rightshift;
                 g_bitfield_table_heap[buffer_index].info.mask =                 bitfield_table[i].table_ptr[j].mask;
@@ -139,7 +121,7 @@ read_tables_to_memory()
                 ++buffer_index;
             }           
         }
-        if (bitfield_table[i].table_type == TYPE_MM)
+        if ((include_devices == 1) && (bitfield_table[i].table_type == TYPE_MM))
         {
             /* Memory mapped access */
             for (j = 0; j < bitfield_table[i].table_compsize_ptr(); ++j)
@@ -149,19 +131,21 @@ read_tables_to_memory()
                 for (k = 0; k < bitfield_table[i].table_ptr[j].range; k++)
                 {
                     g_bitfield_table_heap[buffer_index].table_type =        bitfield_table[i].table_type;
-                    g_bitfield_table_heap[buffer_index].info.range =        bitfield_table[i].table_ptr[j].range;                   
-                    g_bitfield_table_heap[buffer_index].info.ioctl_code =       bitfield_table[i].table_ptr[j].ioctl_code;
+                    g_bitfield_table_heap[buffer_index].info.range =        bitfield_table[i].table_ptr[j].range;
                     g_bitfield_table_heap[buffer_index].info.ppl =              bitfield_table[i].table_ptr[j].ppl;
                     g_bitfield_table_heap[buffer_index].info.rightshift =       bitfield_table[i].table_ptr[j].rightshift;
                     g_bitfield_table_heap[buffer_index].info.mask =                 bitfield_table[i].table_ptr[j].mask;
                     g_bitfield_table_heap[buffer_index].info.bitfield =             bitfield_table[i].table_ptr[j].bitfield;
                     g_bitfield_table_heap[buffer_index].info.functional_group =     bitfield_table[i].table_ptr[j].functional_group;                    
                     g_bitfield_table_heap[buffer_index].info.description =      bitfield_table[i].table_ptr[j].description;
-                    if (bitfield_table[i].table_ptr[j].bitfield_code == -1)
+                    
+                    if (bitfield_table[i].table_ptr[j].range > 1)
                     {
-                        /* create code & register name */
-                        g_bitfield_table_heap[buffer_index].info.bitfield_code =    create_uid(i, j, k, bitfield_table[i].table_ptr[j].functional_group);
-                        g_bitfield_table_heap[buffer_index].info.ioctl_code = g_bitfield_table_heap[buffer_index].info.bitfield_code;
+                        /* create register_uid */                        
+                        g_bitfield_table_heap[buffer_index].info.register_uid = create_uid(i, j, k, bitfield_table[i].part_number);
+                        g_bitfield_table_heap[buffer_index].info.uid = mscode(bitfield_table[i].part_number, 
+                                                                                bitfield_table[i].table_ptr[j].register_uid,
+                                                                                buffer_index);
                         
                         /* expand register name */
                         snprintf(num_buffer, 31, "%d", k);
@@ -170,11 +154,10 @@ read_tables_to_memory()
                     }
                     else
                     {
-                        //g_bitfield_table_heap[buffer_index].info.bitfield_code =    bitfield_table[i].table_ptr[j].bitfield_code;
-                          g_bitfield_table_heap[buffer_index].info.bitfield_code =    mscode(bitfield_table[i].part_number,
-                                                                                bitfield_table[i].table_ptr[j].ioctl_code,
-                                                                                bitfield_table[i].table_ptr[j].bitfield_code);
-                
+                        g_bitfield_table_heap[buffer_index].info.uid = mscode(bitfield_table[i].part_number,
+                                                                                bitfield_table[i].table_ptr[j].register_uid,
+                                                                                bitfield_table[i].table_ptr[j].uid);
+                        g_bitfield_table_heap[buffer_index].info.register_uid = create_uid(i, j, k, bitfield_table[i].part_number);
                         strncpy(g_bitfield_table_heap[buffer_index].register_name_expanded, bitfield_table[i].table_ptr[j].register_name, PARSE_MAX_REGISTER - 1);
                     }
                     ++buffer_index;
@@ -187,6 +170,20 @@ read_tables_to_memory()
     result = 0;
 done:
     return result;
+}
+
+void
+print_table()
+{
+    int i = 0;
+    for (i = 0; i < g_bitfield_table_size; i++)
+    {
+        printf("UID: %08x REG_UID: %08x: REG_EXPANDED: %s FIELDNAME: %s\n",
+                    g_bitfield_table_heap[i].info.uid,
+                    g_bitfield_table_heap[i].info.register_uid,
+                    g_bitfield_table_heap[i].register_name_expanded,
+                    g_bitfield_table_heap[i].info.bitfield);
+    }       
 }
 
 void
@@ -261,7 +258,7 @@ breakout_get_index(
     
     for (i = 0; i < g_bitfield_table_size; ++i)
     {       
-        if (g_bitfield_table_heap[i].info.bitfield_code == code)
+        if (g_bitfield_table_heap[i].info.uid == code)
         {
             *index = i;             
             result = 0;
@@ -281,7 +278,7 @@ get_ioctl(
     unsigned int index = -1;
     if (breakout_get_index(code, &index) == 0)
     {
-        return g_bitfield_table_heap[index].info.ioctl_code;
+        return g_bitfield_table_heap[index].info.register_uid;
     }
     return -1;
 }
@@ -585,7 +582,7 @@ breakout_add_match(
     }   
     
     //TRACE("Adding match: IOCTL: 0x%x UID: 0x%x pcpu: %d Part Number: 0x%x\n", ioctl, uid, cpu, part_number);
-    temp_match_info->ioctl_code = ioctl;
+    temp_match_info->register_uid = ioctl;
     temp_match_info->uid = uid;
     temp_match_info->ppl = ppl;
     temp_match_info->cpu = cpu;
@@ -627,7 +624,7 @@ breakout_add_ioctl(
         goto done;
     }   
     
-    temp->ioctl_code = ioctl;
+    temp->register_uid = ioctl;
     temp->cpu = cpu;
     temp->partnumber = partnumber;
     
@@ -643,7 +640,7 @@ done:
 static
 int
 breakout_add_ioctl_result(ms_list_head * list_in,
-                            unsigned int ioctl_code,
+                            unsigned int register_uid,
                             unsigned long long val64,
                             unsigned int low,
                             unsigned int high,
@@ -666,7 +663,7 @@ breakout_add_ioctl_result(ms_list_head * list_in,
         goto done;
     }
     
-    ioctl_result_p->ioctl_code = ioctl_code;
+    ioctl_result_p->register_uid = register_uid;
     ioctl_result_p->val64 = val64;
     ioctl_result_p->low = low;
     ioctl_result_p->high = high;
@@ -675,7 +672,7 @@ breakout_add_ioctl_result(ms_list_head * list_in,
     ioctl_result_p->epl = epl;
     ioctl_result_p->status = status;
     
-    //TRACE("Adding result: ioctl: %x value_64: %llx low: %x high: %x\n", ioctl_code, val64, low, high);
+    //TRACE("Adding result: ioctl: %x value_64: %llx low: %x high: %x\n", register_uid, val64, low, high);
     
     ms_list_add(list_in, (list_element *)ioctl_result_p);
     
@@ -844,7 +841,7 @@ get_groups(ms_list_head * listout)
          if (get_find(listout, NULL, g_bitfield_table_heap[i].info.functional_group) <= 0)
          {
             if (breakout_add_bitfield_result(listout,
-                                    g_bitfield_table_heap[i].info.bitfield_code,
+                                    g_bitfield_table_heap[i].info.uid,
                                     0, 0, 0, 0, 0, 0, 0) != 0)
             {
                 goto done;
@@ -872,7 +869,7 @@ int get_registers(ms_list_head * listout)
          if (get_find(listout, g_bitfield_table_heap[i].register_name_expanded, NULL) <= 0)
          {
             if (breakout_add_bitfield_result(listout,
-                                    g_bitfield_table_heap[i].info.bitfield_code,
+                                    g_bitfield_table_heap[i].info.uid,
                                     0, 0, 0, 0, 0, 0, 0) != 0)
             {
                 goto done;
@@ -898,7 +895,7 @@ int get_bitfields(ms_list_head * listout)
      for (i = 0; i < g_bitfield_table_size; ++i)
      {         
         if (breakout_add_bitfield_result(listout,
-                                g_bitfield_table_heap[i].info.bitfield_code,
+                                g_bitfield_table_heap[i].info.uid,
                                 0, 0, 0, 0, 0, 0, 0) != 0)
         {
             goto done;
@@ -960,10 +957,10 @@ breakout_construct_bitfield_list(
     /* For all items */
     for (i = 0; i < g_bitfield_table_size; ++i)
     {
-        if (g_bitfield_table_heap[i].info.ioctl_code == ioctl)
+        if (g_bitfield_table_heap[i].info.register_uid == ioctl)
         {
             /* Add this register to list */
-            //TRACE("Adding table index to list: bitfield: %s part: %d, table: %d, index: %d, ioctl: 0x%x\n", bitfield_table[i].table_ptr[j].bitfield, MSCODE_PARTNUMBER(bitfield_table[i].table_ptr[j].bitfield_code), i, j, ioctl);
+            //TRACE("Adding table index to list: bitfield: %s part: %d, table: %d, index: %d, ioctl: 0x%x\n", bitfield_table[i].table_ptr[j].bitfield, MSCODE_PARTNUMBER(bitfield_table[i].table_ptr[j].uid), i, j, ioctl);
             if (breakout_add_table_index(index_list_out, i) != 0)
             {
                 TRACE("Failed to add item to list\n", 0);
@@ -1036,8 +1033,8 @@ breakout_apply_masks_to_list(
          
          /* Save result */
          result = breakout_add_bitfield_result(list_out,
-                                        g_bitfield_table_heap[temp_index->index].info.bitfield_code, 
-                                        g_bitfield_table_heap[temp_index->index].info.ioctl_code, 
+                                        g_bitfield_table_heap[temp_index->index].info.uid, 
+                                        g_bitfield_table_heap[temp_index->index].info.register_uid, 
                                         masked_value,
                                         cat_value,
                                         cpu_in,
@@ -1209,7 +1206,7 @@ breakout_value_validate(
     validate = (results_info *)list_in_matches->head;
     if (validate != NULL)
     {
-        current_ioctl = validate->ioctl_code;
+        current_ioctl = validate->register_uid;
         calc_value = validate->calc_value;
     }
     else
@@ -1220,7 +1217,7 @@ breakout_value_validate(
 
     while (validate != NULL)
     {           
-        if ((current_ioctl != validate->ioctl_code) ||
+        if ((current_ioctl != validate->register_uid) ||
             (calc_value != validate->calc_value))
         {
             /* fail */
@@ -1358,7 +1355,7 @@ breakout_parse_results(
         
         /* From the given ioctl/register, construct a list of table
          * indices from all the lists */        
-        if (breakout_construct_bitfield_list(ioctl_result_element->ioctl_code,
+        if (breakout_construct_bitfield_list(ioctl_result_element->register_uid,
                                                 &register_bitfield_list) != 0)
         {
             TRACE("Failed to construct bitfield list\n", 0);
@@ -1437,7 +1434,7 @@ breakout_call_driver(ms_list_head * list_in,
     while(ioctl_list != NULL)
     {
         /* Set requested cpu code & send request to driver */
-        local_result.code = ioctl_list->ioctl_code;
+        local_result.code = ioctl_list->register_uid;
         local_result.pcpu = ioctl_list->cpu;  
         local_result.part_number = ioctl_list->partnumber;
                 
@@ -1463,7 +1460,7 @@ breakout_call_driver(ms_list_head * list_in,
             for (cpu_iter = 0; cpu_iter < MS_MAX_CPUS; ++cpu_iter)
             {
                 result = breakout_add_ioctl_result(list_out,
-                                                    ioctl_list->ioctl_code,
+                                                    ioctl_list->register_uid,
                                                     local_result.cpu[cpu_iter].out64,
                                                     local_result.cpu[cpu_iter].out1,
                                                     local_result.cpu[cpu_iter].out2,
@@ -1508,7 +1505,7 @@ breakout_call_usermode(ms_list_head * list_in,
 
     while(ioctl_list != NULL)
     {
-        if (usermode_results(ioctl_list->ioctl_code, &local_result) != 0)
+        if (usermode_results(ioctl_list->register_uid, &local_result) != 0)
         {
             TRACE("Failed to send ioctl\n", 0);
         }
@@ -1516,7 +1513,7 @@ breakout_call_usermode(ms_list_head * list_in,
         {
             /* Save results */
             result = breakout_add_ioctl_result(list_out,
-                                                ioctl_list->ioctl_code,
+                                                ioctl_list->register_uid,
                                                 local_result.out64,
                                                 local_result.out1,
                                                 local_result.out2,
@@ -1562,7 +1559,7 @@ breakout_sort_ioctls(ms_list_head * internal_list,
          temp_used_ioctls = (used_ioctl *)to_driver.head;
          while (temp_used_ioctls != NULL)
          {   
-             if (temp_used_ioctls->ioctl_code == temp_result_info->ioctl_code)
+             if (temp_used_ioctls->register_uid == temp_result_info->register_uid)
              {
                  /* found, don't add */
                  flag = 1;
@@ -1576,7 +1573,7 @@ breakout_sort_ioctls(ms_list_head * internal_list,
          temp_used_ioctls = (used_ioctl *)to_usermode.head;
          while (temp_used_ioctls != NULL)
          {   
-             if (temp_used_ioctls->ioctl_code == temp_result_info->ioctl_code)
+             if (temp_used_ioctls->register_uid == temp_result_info->register_uid)
              {
                  /* found, don't add */
                  flag = 1;
@@ -1602,7 +1599,7 @@ breakout_sort_ioctls(ms_list_head * internal_list,
                   {
                       //TRACE("Adding to PL0 list\n", 0);
                         breakout_add_ioctl(&to_usermode,
-                                            temp_result_info->ioctl_code,
+                                            temp_result_info->register_uid,
                                             temp_result_info->cpu,
                                             temp_result_info->part_number);
                   }
@@ -1610,7 +1607,7 @@ breakout_sort_ioctls(ms_list_head * internal_list,
                   {
                       //TRACE("Adding to PL1 list\n", 0);
                         breakout_add_ioctl(&to_driver,
-                                            temp_result_info->ioctl_code,
+                                            temp_result_info->register_uid,
                                             temp_result_info->cpu,
                                             temp_result_info->part_number);
                   }
@@ -1622,7 +1619,7 @@ breakout_sort_ioctls(ms_list_head * internal_list,
                   {
                         //TRACE("Adding to PL0 list\n", 0);
                         breakout_add_ioctl(&to_usermode,
-                                            temp_result_info->ioctl_code,
+                                            temp_result_info->register_uid,
                                             temp_result_info->cpu,
                                             temp_result_info->part_number);
                   }
@@ -1630,7 +1627,7 @@ breakout_sort_ioctls(ms_list_head * internal_list,
                   {
                         //TRACE("Adding to PL1 list\n", 0);
                         breakout_add_ioctl(&to_driver,
-                                            temp_result_info->ioctl_code,
+                                            temp_result_info->register_uid,
                                             temp_result_info->cpu,
                                             temp_result_info->part_number);
                   }
@@ -1682,7 +1679,7 @@ breakout_search_table(
     for (i = 0; i < g_bitfield_table_size; ++i)
     {                           
          /* if the bitfield code, functional group, or register name matches */
-        if ((g_bitfield_table_heap[i].info.bitfield_code == info->bitfield_code)  ||
+        if ((g_bitfield_table_heap[i].info.uid == info->uid)  ||
             (strncmp(g_bitfield_table_heap[i].info.functional_group,
                     (const char *)info->functional_group,
                     PARSE_MAX_FUNCTIONAL - 1) == 0)             ||
@@ -1693,17 +1690,17 @@ breakout_search_table(
             if (g_bitfield_table_heap[i].table_type == TYPE_IMPL)
             {
                 //add if (arch matches && (all || requested))
-                if (info->architecture == get_arch_from_impl(MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code))
-                        && ((info->implementation == IMPL_ALL) || (info->implementation == MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code))))
+                if (info->architecture == get_arch_from_impl(MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.uid))
+                        && ((info->implementation == IMPL_ALL) || (info->implementation == MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.uid))))
                 {                   
                     if (breakout_add_match(list_out,
                                         g_bitfield_table_heap[i].info.ppl,
                                         info->cpu,
                                         info->pl,
-                                        g_bitfield_table_heap[i].info.bitfield_code,
-                                        g_bitfield_table_heap[i].info.ioctl_code,
+                                        g_bitfield_table_heap[i].info.uid,
+                                        g_bitfield_table_heap[i].info.register_uid,
                                         info->noparse,
-                                        MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code),
+                                        MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.uid),
                                         info->calc,
                                         info->calc_value) != 0)
                     {
@@ -1714,16 +1711,16 @@ breakout_search_table(
             else if (g_bitfield_table_heap[i].table_type == TYPE_ARCH)
             {
                 //add if (arch matches)             
-                if ((MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code) == info->architecture))
+                if ((MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.uid) == info->architecture))
                 {                   
                     if (breakout_add_match(list_out,
                                         g_bitfield_table_heap[i].info.ppl,
                                         info->cpu,
                                         info->pl,
-                                        g_bitfield_table_heap[i].info.bitfield_code,
-                                        g_bitfield_table_heap[i].info.ioctl_code,
+                                        g_bitfield_table_heap[i].info.uid,
+                                        g_bitfield_table_heap[i].info.register_uid,
                                         info->noparse,
-                                        MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code),
+                                        MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.uid),
                                         info->calc,
                                         info->calc_value) != 0)
                     {
@@ -1738,10 +1735,10 @@ breakout_search_table(
                                     g_bitfield_table_heap[i].info.ppl,
                                     info->cpu,
                                     info->pl,
-                                    g_bitfield_table_heap[i].info.bitfield_code,
-                                    g_bitfield_table_heap[i].info.ioctl_code,
+                                    g_bitfield_table_heap[i].info.uid,
+                                    g_bitfield_table_heap[i].info.register_uid,
                                     info->noparse,
-                                    MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.bitfield_code),
+                                    MSCODE_PARTNUMBER(g_bitfield_table_heap[i].info.uid),
                                     info->calc,
                                     info->calc_value) != 0)
                 {
@@ -1785,7 +1782,7 @@ find_bitfields(
      
     ms_list_init(&requested_bitfields_list);
     ms_list_init(&ioctl_results_list);
-    TRACE("Looking for: %x %s %s\n", info->bitfield_code, info->functional_group, info->register_name);
+    TRACE("Looking for: %x %s %s\n", info->uid, info->functional_group, info->register_name);
      
      
     /* Search tables for matching bitfields -- 

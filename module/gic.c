@@ -20,7 +20,7 @@ void
 gic_bar_read(
     void * result_out)
 {   
-    unsigned int cpu_index = 0;    
+    unsigned int cpu_index = 0;        
     ms_data * co15_result_entry = NULL;
     co15_result_cpu_wrapper * result_out_cast = NULL;
     unsigned int value = 0;

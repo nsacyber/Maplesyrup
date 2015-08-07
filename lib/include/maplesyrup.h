@@ -72,6 +72,7 @@ int ms_find_by_bitfield(char * arch,
                         int cpu,
                         unsigned int pl,
                         unsigned int noparse,
+                        int include_devices,
                         ms_bitfield_info ** results_out);
 
 /******************************************************
@@ -92,6 +93,7 @@ int ms_find_by_register(char * arch,
                         unsigned int pl,
                         unsigned int noparse,
                         char * calc_value,
+                        int include_devices,
                         ms_bitfield_info ** list_out);
 
 /******************************************************
@@ -111,6 +113,7 @@ int ms_find_by_group(char * arch,
                      int cpu,
                      unsigned int pl,
                      unsigned int noparse,
+                     int include_devices,
                      ms_bitfield_info ** list_out);
                      
                      
@@ -122,7 +125,7 @@ int ms_find_by_group(char * arch,
  * @return 0 on success, -1 on error
  * 
  * ***************************************************/
-int ms_get_groups(ms_bitfield_info ** list_out);
+int ms_get_groups(ms_bitfield_info ** list_out, int include_devices);
 
 /******************************************************
  * Search tables for all entered register names
@@ -132,7 +135,7 @@ int ms_get_groups(ms_bitfield_info ** list_out);
  * @return 0 on success, -1 on error
  * 
  * ***************************************************/
-int ms_get_registers(ms_bitfield_info ** list_out);
+int ms_get_registers(ms_bitfield_info ** list_out, int include_devices);
 
 /******************************************************
  * Search tables for all valid bitfield ids
@@ -142,7 +145,7 @@ int ms_get_registers(ms_bitfield_info ** list_out);
  * @return 0 on success, -1 on error
  * 
  * ***************************************************/
-int ms_get_bitfields(ms_bitfield_info ** list_out);
+int ms_get_bitfields(ms_bitfield_info ** list_out, int include_devices);
 
 /******************************************************
  * Free the memory allocated by find and get

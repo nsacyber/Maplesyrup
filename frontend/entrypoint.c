@@ -31,6 +31,7 @@ int flag_fb_show_info = 0;
 int flag_fb_showerrors = 0;
 int flag_fb_noparse = 0;
 int flag_fb_calc = 0;
+int flag_fb_devices = 0;
 
 static struct option long_options[] = 
 {       
@@ -47,9 +48,10 @@ static struct option long_options[] =
         { "bitfield", no_argument, &flag_fb_bitfield, 1 },
         { "all", no_argument, &flag_fb_all, 1 },
         { "noparse", no_argument, &flag_fb_noparse, 1 },
-        { "showfail", no_argument, &flag_fb_showerrors, 1 },        
+        { "showfail", no_argument, &flag_fb_showerrors, 1 },
         { "el0", no_argument, &flag_fb_el0, 1 },
-        { "el1", no_argument, &flag_fb_el1, 1 },        
+        { "el1", no_argument, &flag_fb_el1, 1 },
+        { "devices", no_argument, &flag_fb_devices, 1 },
         { "show_groups", no_argument, &flag_fb_show_info, FLAG_SHOW_GROUPS },
         { "show_bitfields", no_argument, &flag_fb_show_info, FLAG_SHOW_BITFIELDS },
         { "show_registers", no_argument, &flag_fb_show_info, FLAG_SHOW_REGISTERS },
@@ -77,6 +79,7 @@ print_usage(void)
         { long_options, "show all results regardless of success" },
         { long_options, "force execution at pl0" },
         { long_options, "force execution at pl1" },
+        { long_options, "include memory-mapped devices (memory intensive)" },
         { long_options, "shows all valid functional groups" },  
         { long_options, "shows all valid bitfields" },  
         { long_options, "shows all valid register" },   
@@ -331,7 +334,7 @@ main(int argc, char ** argv)
         switch(flag_fb_show_info)
         {
             case FLAG_SHOW_GROUPS:
-                ms_get_groups(&toshow);
+                ms_get_groups(&toshow, flag_fb_devices);
                 no_results(toshow);
                 for (i = 0; i < ms_get_size(toshow); ++i)
                 {       
@@ -340,7 +343,7 @@ main(int argc, char ** argv)
                 ms_free_result(&toshow);
                 break;
             case FLAG_SHOW_BITFIELDS:
-                ms_get_bitfields(&toshow);
+                ms_get_bitfields(&toshow, flag_fb_devices);
                 no_results(toshow);
                 for (i = 0; i < ms_get_size(toshow); ++i)
                 {       
@@ -353,7 +356,7 @@ main(int argc, char ** argv)
                 ms_free_result(&toshow);
                 break;
             case FLAG_SHOW_REGISTERS:
-                ms_get_registers(&toshow);
+                ms_get_registers(&toshow, flag_fb_devices);
                 no_results(toshow);
                 for (i = 0; i < ms_get_size(toshow); ++i)
                 {       
@@ -378,6 +381,7 @@ main(int argc, char ** argv)
                                     arg_core,
                                     ppl,
                                     flag_fb_noparse,
+                                    flag_fb_devices,
                                     &output) != 0)
             {               
                 goto done;
@@ -394,6 +398,7 @@ main(int argc, char ** argv)
                                  arg_core,
                                  ppl,
                                  flag_fb_noparse,
+                                 flag_fb_devices,
                                  &output) != 0)
             {               
                 goto done;
@@ -413,6 +418,7 @@ main(int argc, char ** argv)
                                         ppl,
                                         flag_fb_noparse,
                                         arg_calc,
+                                        flag_fb_devices,
                                         &output) != 0)
                 {               
                     goto done;
@@ -427,6 +433,7 @@ main(int argc, char ** argv)
                                         ppl,
                                         flag_fb_noparse,
                                         NULL,
+                                        flag_fb_devices,
                                         &output) != 0)
                 {               
                     goto done;
@@ -436,7 +443,7 @@ main(int argc, char ** argv)
     }   
     else if (flag_fb_all)
     {
-        ms_get_groups(&toshow);
+        ms_get_groups(&toshow, flag_fb_devices);
         for (i = 0; i < ms_get_size(toshow); ++i)
         {                       
             if (ms_find_by_group(arg_arch,
@@ -445,6 +452,7 @@ main(int argc, char ** argv)
                                  arg_core,
                                  ppl,
                                  flag_fb_noparse,
+                                 flag_fb_devices,
                                  &output) != 0)
             {               
                 goto done;

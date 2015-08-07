@@ -68,10 +68,10 @@ procedure has completed.
 ### Features/Limitations
 ------------------------
 * Multi-core support
-* Memory-mapped registers are currently not supported
+* Memory-mapped system registers are currently not supported
 * Only EL0/EL1 are supported
 * Support for Cortex A7/A15/A53/A57
-* Experimental GICv2 support
+* Support for memory-mapped devices
 
   *   This application reads only a small portion of the available system
       registers on an ARM CPU. Please refer to the ARMv7A and ARMv8A Architecture
@@ -202,6 +202,7 @@ Usage: maplesyrup --<register|group|bitfield|all> <NAME or ID> --arch=<ARCH> --i
   --showfail - show all results regardless of success
   --el0 - force execution at pl0
   --el1 - force execution at pl1
+  --devices - include memory-mapped devices (memory intensive)
   --show_groups - shows all valid functional groups
   --show_bitfields - shows all valid bitfields
   --show_registers - shows all valid register

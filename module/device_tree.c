@@ -110,7 +110,7 @@ ms_remap_gic(void)
     {
         goto done;
     }
-    TRACE("Remapped GICD %x to %x\n", gic_map.gicd_phys, gic_map.gicd_virt);
+    TRACE("Remapped GICD %x to %x (size: 0x%x)\n", gic_map.gicd_phys, gic_map.gicd_virt, gic_map.gicd_size);
     
     if (gic_map.gicc_phys != NULL)
     {
@@ -126,7 +126,7 @@ ms_remap_gic(void)
     {
         goto done;
     }
-    TRACE("Remapped GICC %x to %x\n", gic_map.gicc_phys, gic_map.gicc_virt);
+    TRACE("Remapped GICC %x to %x (size: 0x%x)\n", gic_map.gicc_phys, gic_map.gicc_virt, gic_map.gicc_size);
     
     if (gic_map.gich_phys != NULL)
     {
@@ -138,7 +138,7 @@ ms_remap_gic(void)
         }
         gic_map.gich_virt = (void *)mapped_addr;
     }
-    TRACE("Remapped GICH %x to %x\n", gic_map.gich_phys, gic_map.gich_virt);
+    TRACE("Remapped GICH %x to %x (size: 0x%x)\n", gic_map.gich_phys, gic_map.gich_virt, gic_map.gich_size);
     
     if (gic_map.gicv_phys != NULL)
     {
@@ -150,7 +150,7 @@ ms_remap_gic(void)
         }
         gic_map.gicv_virt = (void *)mapped_addr;
     }
-    TRACE("Remapped GICV %x to %x\n", gic_map.gicv_phys, gic_map.gicv_virt);
+    TRACE("Remapped GICV %x to %x (size: 0x%x)\n", gic_map.gicv_phys, gic_map.gicv_virt, gic_map.gicv_size);
     
     result = 0;
 done:

@@ -74,7 +74,8 @@ int get_groups(ms_list_head * listout);
 int get_registers(ms_list_head * listout);
 int get_bitfields(ms_list_head * listout);
 
-int read_tables_to_memory();
+int read_tables_to_memory(int include_devices);
+void print_table();
 void erase_tables();
 
 #endif

@@ -192,7 +192,8 @@ done:
 
 int
 ms_get_groups(
-    ms_bitfield_info ** list_out)
+    ms_bitfield_info ** list_out,
+    int include_devices)
 {
     int result = -1;
     ms_list_head list;
@@ -203,11 +204,11 @@ ms_get_groups(
     }
     ms_list_init(&list);
     
-    if (read_tables_to_memory() != 0)
+    if (read_tables_to_memory(include_devices) != 0)
     {
         TRACE("Failed to expand table to memory\n", 0);
     }
-    
+       
     if (get_groups(&list) != 0)
     {
         TRACE("Failed to get_groups\n", 0);
@@ -230,7 +231,8 @@ done:
 
 int
 ms_get_registers(
-    ms_bitfield_info ** list_out)
+    ms_bitfield_info ** list_out,
+    int include_devices)
 {
     int result = -1;
     ms_list_head list;
@@ -241,7 +243,7 @@ ms_get_registers(
     }
     ms_list_init(&list);        
     
-    if (read_tables_to_memory() != 0)
+    if (read_tables_to_memory(include_devices) != 0)
     {
         TRACE("Failed to expand table to memory\n", 0);
     }
@@ -267,7 +269,8 @@ done:
 
 int
 ms_get_bitfields(
-    ms_bitfield_info ** list_out)
+    ms_bitfield_info ** list_out,
+    int include_devices)
 {
     int result = -1;
     ms_list_head list;
@@ -278,7 +281,7 @@ ms_get_bitfields(
     }
     ms_list_init(&list);    
     
-    if (read_tables_to_memory() != 0)
+    if (read_tables_to_memory(include_devices) != 0)
     {
         TRACE("Failed to expand table to memory\n", 0);
     }
@@ -311,6 +314,7 @@ ms_find_by_bitfield(
     int cpu,
     unsigned int pl,
     unsigned int noparse,
+    int include_devices,
     ms_bitfield_info ** results_out)
 {
     int result = -1;
@@ -335,9 +339,9 @@ ms_find_by_bitfield(
         TRACE("Failed to set_match_info\n", 0);
         goto done;
     }
-    match.bitfield_code = bitfield;     
+    match.uid = bitfield;     
     
-    if (read_tables_to_memory() != 0)
+    if (read_tables_to_memory(include_devices) != 0)
     {
         TRACE("Failed to expand table to memory\n", 0);
     }
@@ -373,6 +377,7 @@ ms_find_by_register(
     unsigned int pl,
     unsigned int noparse,
     char * calc_value,
+    int include_devices,
     ms_bitfield_info ** results_out)
 {
     int result = -1;
@@ -403,7 +408,7 @@ ms_find_by_register(
     }
     strncpy(match.register_name, regname, PARSE_MAX_REGISTER - 1);                  
     
-    if (read_tables_to_memory() != 0)
+    if (read_tables_to_memory(include_devices) != 0)
     {
         TRACE("Failed to expand table to memory\n", 0);
     }
@@ -440,6 +445,7 @@ ms_find_by_group(
     int cpu,
     unsigned int pl, 
     unsigned int noparse,
+    int include_devices,
     ms_bitfield_info ** results_out)
 {
     int result = -1;
@@ -465,7 +471,7 @@ ms_find_by_group(
     }
     strncpy(match.functional_group, groupname, PARSE_MAX_FUNCTIONAL - 1);               
     
-    if (read_tables_to_memory() != 0)
+    if (read_tables_to_memory(include_devices) != 0)
     {
         TRACE("Failed to expand table to memory\n", 0);
     }

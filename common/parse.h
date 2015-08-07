@@ -76,9 +76,10 @@ typedef struct ms_data_cpu
 
 typedef struct bitfield_info
 {
-    unsigned int range;         // greater or equal to than 1
-    unsigned int bitfield_code; // bitfield 
-    unsigned int ioctl_code;    // register level
+    unsigned int range;     // greater or equal to than 1 (applies to MM intf only)
+    //unsigned int field_partition; // 
+    int uid;            // bitfield unique id 
+    unsigned int register_uid;    // register unique id
     unsigned int ppl;           // preferred privilege level
     unsigned int rightshift;    // number of right bitshifts
     unsigned int mask;          // mask to apply after right bitshift
@@ -121,7 +122,7 @@ typedef struct match_info
     unsigned int implementation;
     unsigned char functional_group[PARSE_MAX_FUNCTIONAL];
     unsigned char register_name[PARSE_MAX_REGISTER];
-    unsigned int bitfield_code;
+    unsigned int uid;
     unsigned int pl; // override preferred pl
     unsigned int noparse;
     unsigned int cpu;
@@ -133,7 +134,7 @@ typedef struct match_info
 typedef struct results_info
 {
     list_element list;
-    unsigned int ioctl_code;
+    unsigned int register_uid;
     unsigned int uid;
     unsigned int ppl;
     unsigned int pl;
@@ -147,7 +148,7 @@ typedef struct results_info
 typedef struct used_ioctl
 {
     list_element list;
-    unsigned int ioctl_code;
+    unsigned int register_uid;
     unsigned int cpu;
     unsigned int partnumber;
 } used_ioctl;
@@ -155,7 +156,7 @@ typedef struct used_ioctl
 typedef struct ioctl_result
 {
     list_element list;
-    unsigned int ioctl_code;
+    unsigned int register_uid;
     unsigned long long val64;
     unsigned int low;
     unsigned int high;
@@ -392,7 +393,6 @@ enum
     MS_SYSREG_FPSR,
     MS_SYSREG_NZCV,
     MS_SYSREG_SPSEL,
-    
 };
 
 /* GICv2 CPU Interface */
@@ -425,6 +425,26 @@ enum
 #define MS_GIC_GICD_IGROUPR     0x80  // ranged
 #define MS_GIC_GICD_ISENABLER   0x100 // ranged
 #define MS_GIC_GICD_ISPENDR     0x200 // ranged
+#define MS_GIC_GICD_ICPENDR     0x280 // ranged
+#define MS_GIC_GICD_ISACTIVER   0x300 // ranged
+#define MS_GIC_GICD_ICACTIVER   0x380 // ranged
+#define MS_GIC_GICD_IPRIORITYR  0x400 // ranged
+#define MS_GIC_GICD_RESERVED_02 0x7FC // ranged
+#define MS_GIC_GICD_ITARGETSR   0x800 // ranged
+#define MS_GIC_GICD_RESERVED_03 0xBFC // ranged
+#define MS_GIC_GICD_ICFGR       0xC00 // ranged
+#define MS_GIC_GICD_IMP_DEF_01  0xD00 // ranged
+#define MS_GIC_GICD_NSACR       0xE00 // ranged
+#define MS_GIC_GICD_SGIR        0xF00
+#define MS_GIC_GICD_RESERVED_04 0xF04 // ranged
+#define MS_GIC_GICD_CPENDSGIR   0xF10 // ranged
+#define MS_GIC_GICD_SPENDSGIR   0xF20 // ranged
+#define MS_GIC_GICD_RESERVED_05 0xF30 // ranged
+#define MS_GIC_GICD_IDENT       0xFD0 // ranged
+#define MS_GIC_GICD_ICPIDR2     0xFE8 // ranged
+
+
+
 
 /*
 #define MS_GIC_GICD_RESERVED_01 0x10
