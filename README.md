@@ -1,11 +1,11 @@
-Maplesyrup Register Display Tool
-==================================
+# Maplesyrup Register Display Tool
+
 Maplesyrup is a tool that can be used to help determine the security state of an
 ARM-based device by examining the system register interface of the CPU.
 
 
-### Who is this for?
---------------------
+## Who is this for?
+
 Maplesyrup is for anyone who has low level access to a handset or single-board PC
 running an ARMv7A/v8A based processor and is interested in knowing the register level
 configuration of their CPU at OS runtime. These registers contain featureset and
@@ -13,8 +13,8 @@ security information that may influence operation of the system kernel and
 running applications.
 
 
-### Why was this created?
---------------------------
+## Why was this created?
+
 Linux provides featureset and platform information to the user in the /proc and /sys
 filesystems, but the configurations governing how these features operate
 is sometimes hidden to the user. In some cases, the OS will make use of the 
@@ -25,16 +25,16 @@ operation of the system by configuring how a CPU controls access to security
 domains, executes specific instructions, and handles CPU exceptions.
 
 
-### How does it work?
----------------------
+## How does it work?
+
 Maplesyrup consists of a kernel driver and a user mode component.
 The kernel driver collects the information and returns it to the
 user mode component which parses the information and presents it
 to the user.
 
 
-### What can I do with the results?
------------------------------------
+## What can I do with the results?
+
 The results will show the low level operating configuration of the system,
 and can be used to help determine the security state of a device.
 They may include security settings such as the status of Virtualization
@@ -53,8 +53,8 @@ specific examples are listed below:
 *   Debug Architecture access permissions
 
 
-### What do the results represent?
-----------------------------------
+## What do the results represent?
+
 The data stored in the system registers may or may not represent how
 the chip actually operates and the nature of the value is entirely
 defined by the vendor implementing the device. In addition, some registers
@@ -65,24 +65,21 @@ that is relevant to a procedure and may have no further relevance once that
 procedure has completed.
 
 
-### Features/Limitations
-------------------------
+## Features/Limitations
+
 * Multi-core support
 * Memory-mapped system registers are currently not supported
 * Only EL0/EL1 are supported
 * Support for Cortex A7/A15/A53/A57
 * Support for memory-mapped devices
 
-  *   This application reads only a small portion of the available system
-      registers on an ARM CPU. Please refer to the ARMv7A and ARMv8A Architecture
-      Manuals and the appropriate Cortex TRM for official documentation.   
 
-WARNING: This application and kernel module are to be used only
-on test systems. Leaving the kernel module installed
-on a non-test system will compromise the system's security.
+This application reads only a small portion of the available system registers on an ARM CPU. Please refer to the ARMv7A and ARMv8A Architecture Manuals and the appropriate Cortex TRM for official documentation.   
+
+WARNING: This application and kernel module are to be used only on test systems. Leaving the kernel module  installed on a non-test system will compromise the system's security.
          
-### Platforms Tested
---------------------
+## Platforms Tested
+
 *   Galaxy S5 Exynos Variant
 *   ODROID-XU3
 *   HOWCHIP 5250 Ver. C
@@ -91,20 +88,20 @@ on a non-test system will compromise the system's security.
 *   Versatile JUNO Development Platform
 *   Raspberry PI 2
    
-### Requirements
-----------------
+## Requirements
+
 *   Ubuntu 14.04
-  * sudo apt-get install libtool autoconf
+*   sudo apt-get install libtool autoconf
 *   Toolchain for target architecture (if cross compiling) to build usermode and kernel components
-  * _arm-linux-gnueabi_ for 32-bit
-  * _aarch64-linux-gnu_ for 64-bit
-  * _arm-linux-androideabi_ for Android
+    * _arm-linux-gnueabi_ for 32-bit
+    * _aarch64-linux-gnu_ for 64-bit
+    * _arm-linux-androideabi_ for Android
 *   Kernel source tree (required for kernel module build)
 *   Linux based device with root access and the ability to load unsigned kernel modules
 
 
-### Directory Structure
------------------------
+## Directory Structure
+
 ```
 ./common - Files common to both the kernel module and user mode component
 ./lib    - The user mode parsing library
@@ -114,10 +111,9 @@ on a non-test system will compromise the system's security.
 Final build executables will be './frontend/maplesyrup' and './module/maplesyrup_mod.ko'
 ```
 
-### Build Instructions
-----------------------
+## Build Instructions
 
-#### Native ARM Compilation
+### Native ARM Compilation
 ```
     Run autogen.sh
     ./configure LDFLAGS="-static" 
@@ -127,7 +123,7 @@ Final build executables will be './frontend/maplesyrup' and './module/maplesyrup
     make
 ```
 
-#### ARM Cross-Compilation
+### ARM Cross-Compilation
 ```
     Run autogen.sh
     Ensure path to toolchain binaries is in PATH (PATH=$PATH:/path/to/toolchain)
@@ -142,7 +138,7 @@ Final build executables will be './frontend/maplesyrup' and './module/maplesyrup
     make
 ```
 
-#### Android Compilation
+### Android Compilation
 ```
     Requirements: The device must be rooted and the kernel must be configured for loadable kernel modules.
 
@@ -165,8 +161,8 @@ Final build executables will be './frontend/maplesyrup' and './module/maplesyrup
     make
 ```
 
-### General Installation Instructions
--------------------------------------
+## General Installation Instructions
+
 *   Installation on a native ARM system is a simple 'sudo make install'. The kernel
     module can be installed with the typical loadable module routines.
 
@@ -184,8 +180,8 @@ Final build executables will be './frontend/maplesyrup' and './module/maplesyrup
 *   Make sure to 'rmmod maplesyrup_mod' when done to unload the kernel module. Failure
     to do this may leave the system in an unsafe state.
 
-### Usage Instructions
-----------------------
+## Usage Instructions
+
 ```
 Usage: maplesyrup --<register|group|bitfield|all> <NAME or ID> --arch=<ARCH> --impl=<IMPL or all> [--core=<CORE or -1>] [OTHER OPTIONS]
 
@@ -312,12 +308,12 @@ Examples:
     There are a lot of registers and any one could have been unintentionally
     skipped or misidentified.
     
-*   I make no guarantee that any of the above statements are complete or true,
+*   There is no guarantee that any of the above statements are complete or true,
     or that the results returned by Maplesyrup are correct, accurate or
-    meaningful. I _can_ guarantee that it compiles successfully on my system. YMMV.
+    meaningful.
 
-### How do I add my own bitfield decoding?
-------------------------------------------
+## How do I add my own bitfield decoding?
+
 Bitfield decodings are statically programmed into the application, but
 can easily be expanded to include new or missing decodings. The relevant
 files you may need to modify are listed below:
@@ -330,3 +326,19 @@ The following files may need to be modified if a new register needs to be added:
 The actual decode tables are stored under
 *   ./lib/src/bitfields/
 and follow the naming convention bitfield_*.c/h.
+
+## License
+This Work was prepared by a United States Government employee and, therefore, is excluded from copyright by Section 105 of the Copyright Act of 1976.
+
+Copyright and Related Rights in the Work worldwide are waived through the [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) [Universal license](https://creativecommons.org/publicdomain/zero/1.0/legalcode).
+
+## Disclaimer of Warranty
+This Work is provided "as is." Any express or implied warranties, including but not limited to, the implied warranties of merchantability and fitness for a particular purpose are disclaimed. In no event shall the United States Government be liable for any direct, indirect, incidental, special, exemplary or consequential damages (including, but not limited to, procurement of substitute goods or services, loss of use, data or profits, or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise) arising in any way out of the use of this Guidance, even if advised of the possibility of such damage.
+
+The User of this Work agrees to hold harmless and indemnify the United States Government, its agents and employees from every claim or liability (whether in tort or in contract), including attorneys' fees, court costs, and expenses, arising in direct consequence of Recipient's use of the item, including, but not limited to, claims or liabilities made for injury to or death of personnel of User or third parties, damage to or destruction of property of User or third parties, and infringement or other violations of intellectual property or technical data rights.
+
+Nothing in this Work is intended to constitute an endorsement, explicit or implied, by the United States Government of any particular manufacturer's product or service.
+
+## Disclaimer of Endorsement
+Reference herein to any specific commercial product, process, or service by trade name, trademark, manufacturer, or otherwise, in this Work does not constitute an endorsement, recommendation, or favoring by the United States Government and shall not be used for advertising or product endorsement purposes.
+
